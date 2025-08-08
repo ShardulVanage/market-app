@@ -1,5 +1,4 @@
 "use client";
-
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
@@ -13,9 +12,10 @@ export default function DashboardPage() {
   const { currentUser, isLoading, logout, refreshAuth } = useAuth();
   const router = useRouter();
   const pb = getClientPb();
-
+  
   const [companyData, setCompanyData] = useState(null);
   const [isFetchingCompany, setIsFetchingCompany] = useState(true);
+  const [fetchTimeout, setFetchTimeout] = useState(null);
 
   const fetchCompanyDetails = useCallback(async () => {
     if (!currentUser?.id || !pb.authStore.isValid) {
@@ -31,13 +31,20 @@ export default function DashboardPage() {
     }
 
     setIsFetchingCompany(true);
+    
     try {
-      const timestamp = new Date().getTime();
-      const record = await pb.collection("companies").getFirstListItem(`user="${currentUser.id}"`, {
-        requestKey: `dashboard-company-fetch-${currentUser.id}-${timestamp}`,
-      });
+      // Remove requestKey to avoid auto-cancellation issues
+      const record = await pb.collection("companies").getFirstListItem(
+        `user="${currentUser.id}"`
+      );
       setCompanyData(record);
     } catch (err) {
+      // Handle auto-cancellation gracefully
+      if (err.isAbort || err.name === 'AbortError' || err.message?.includes('autocancelled')) {
+        console.log("Request was cancelled, this is normal when navigating quickly");
+        return; // Don't show error for cancelled requests
+      }
+      
       if (err.status === 404) {
         setCompanyData(null); // No company found for this user
       } else {
@@ -48,12 +55,46 @@ export default function DashboardPage() {
     }
   }, [currentUser, pb]);
 
-  // Only fetch once when the component mounts or when currentUser changes
+  // Debounced effect to prevent rapid successive requests
   useEffect(() => {
+    // Clear any existing timeout
+    if (fetchTimeout) {
+      clearTimeout(fetchTimeout);
+    }
+
+    // Only fetch if we have a current user
     if (currentUser?.id) {
-      fetchCompanyDetails();
+      // Debounce the fetch call to prevent rapid successive requests
+      const timeout = setTimeout(() => {
+        fetchCompanyDetails();
+      }, 100); // 100ms debounce
+      
+      setFetchTimeout(timeout);
+      
+      // Cleanup timeout
+      return () => {
+        if (timeout) {
+          clearTimeout(timeout);
+        }
+      };
+    } else {
+      setIsFetchingCompany(false);
     }
   }, [currentUser?.id, fetchCompanyDetails]);
+
+  // Cleanup function to cancel any pending requests when component unmounts
+  useEffect(() => {
+    return () => {
+      // Cancel any pending PocketBase requests
+      if (pb?.cancelAllRequests) {
+        pb.cancelAllRequests();
+      }
+      // Clear any pending timeouts
+      if (fetchTimeout) {
+        clearTimeout(fetchTimeout);
+      }
+    };
+  }, [pb, fetchTimeout]);
 
   const handleLogout = () => {
     logout();
@@ -84,7 +125,9 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="text-center">
-              <h2 className="text-xl font-semibold">Welcome, {currentUser.firstName || currentUser.email}!</h2>
+              <h2 className="text-xl font-semibold">
+                Welcome, {currentUser.firstName || currentUser.email}!
+              </h2>
               <p className="text-gray-600">Your role: {currentUser.userRole}</p>
             </div>
 
@@ -92,7 +135,7 @@ export default function DashboardPage() {
               <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4" role="alert">
                 <p className="font-bold">Email Not Verified</p>
                 <p>Please verify your email to access all features.</p>
-                <Button onClick={() => router.push("/verify-otp")} className="mt-2"> {/* Changed to /verify-otp */}
+                <Button onClick={() => router.push("/verify-otp")} className="mt-2">
                   Verify Email Now
                 </Button>
               </div>
@@ -159,22 +202,65 @@ export default function DashboardPage() {
                               Your company details were rejected. Please review and re-submit.
                             </p>
                           )}
+                          {companyData.description && (
+                            <p>
+                              <strong>Description:</strong> {companyData.description.substring(0, 100)}
+                              {companyData.description.length > 100 ? "..." : ""}
+                            </p>
+                          )}
+                          {companyData.website && (
+                            <p>
+                              <strong>Website:</strong>{" "}
+                              <a 
+                                href={companyData.website} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="text-blue-600 hover:underline"
+                              >
+                                {companyData.website}
+                              </a>
+                            </p>
+                          )}
                         </div>
                       ) : (
-                        <p>No company details added yet. Please add your company information.</p>
+                        <div className="text-center py-4">
+                          <p className="text-gray-600 mb-3">
+                            No company details added yet. Please add your company information.
+                          </p>
+                          <Button 
+                            onClick={() => router.push("/dashboard/company")}
+                            variant="outline"
+                          >
+                            Add Company Details
+                          </Button>
+                        </div>
                       )}
                     </CardContent>
                   </Card>
                 )}
               </div>
             )}
-            {/* Moved Logout button outside the conditional block */}
-            <div className="mt-6">
-              <h3 className="text-lg font-semibold">Other Actions</h3>
-              <Button onClick={handleLogout} variant="destructive" className="mt-2">
-                Logout
-              </Button>
-            </div>
+
+            {/* Other Actions - Always visible */}
+            <div className="mt-6 pt-6 border-t">
+              <h3 className="text-lg font-semibold mb-3">Other Actions</h3>
+              <div className="flex flex-col sm:flex-row gap-2">
+                {/* <Button 
+                  onClick={() => refreshAuth()} 
+                  variant="outline"
+                  className="flex-1"
+                >
+                  Refresh Account Status
+                </Button> */}
+                <Button 
+                  onClick={handleLogout} 
+                  variant="destructive" 
+                  className="flex-1"
+                >
+                  Logout
+                </Button>
+              </div>
+            </div>  
           </CardContent>
         </Card>
       </div>

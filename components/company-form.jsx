@@ -1,5 +1,4 @@
 "use client";
-
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
@@ -17,7 +16,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import LoadingSpinner from "@/components/ui/loading-spinner";
 import { companyTypes, countries } from "@/lib/constants";
-import { Plus, X, Edit, Save, Trash } from 'lucide-react';
+import { Plus, X, Edit, Save, Trash, AlertCircle } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -26,24 +25,95 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Alert,
+  AlertDescription,
+} from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 
-function parseJsonField(jsonString) {
-  if (!jsonString || typeof jsonString !== 'string' || jsonString === "null" || jsonString.trim() === "") {
+// Improved JSON parsing with better error handling
+function parseJsonField(jsonData) {
+  // Handle null, undefined, or empty values
+  if (!jsonData || jsonData === "null" || jsonData === null || jsonData === undefined) {
     return [];
   }
+  
+  // If it's already an array, just add IDs and return
+  if (Array.isArray(jsonData)) {
+    return jsonData.map(item => ({ 
+      ...item, 
+      id: item.id || crypto.randomUUID() 
+    }));
+  }
+  
+  // If it's already an object (but not array), wrap it in array
+  if (typeof jsonData === 'object') {
+    return [{ ...jsonData, id: jsonData.id || crypto.randomUUID() }];
+  }
+  
+  // If it's a string, try to parse it
+  if (typeof jsonData === 'string') {
+    const trimmed = jsonData.trim();
+    if (trimmed === "" || trimmed === "null") {
+      return [];
+    }
+    
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        return parsed.map(item => ({ 
+          ...item, 
+          id: item.id || crypto.randomUUID() 
+        }));
+      }
+      if (typeof parsed === 'object' && parsed !== null) {
+        return [{ ...parsed, id: parsed.id || crypto.randomUUID() }];
+      }
+      return [];
+    } catch (e) {
+      console.error("Error parsing JSON field:", e, jsonData);
+      return [];
+    }
+  }
+  
+  // For any other data type, return empty array
+  console.warn("Unexpected data type for JSON field:", typeof jsonData, jsonData);
+  return [];
+}
+
+// Improved JSON stringification
+function stringifyJsonField(data) {
+  if (!data || !Array.isArray(data) || data.length === 0) {
+    return "[]";
+  }
+  
   try {
-    const parsed = JSON.parse(jsonString);
-    return Array.isArray(parsed) ? parsed.map(item => ({ ...item, id: item.id || crypto.randomUUID() })) : [];
+    // Remove temporary IDs and any undefined/null values before saving
+    const cleanData = data
+      .filter(item => item && typeof item === 'object')
+      .map(({ id, ...rest }) => {
+        // Remove any undefined or null values
+        const cleanItem = {};
+        Object.keys(rest).forEach(key => {
+          if (rest[key] !== undefined && rest[key] !== null) {
+            cleanItem[key] = rest[key];
+          }
+        });
+        return cleanItem;
+      });
+    
+    return JSON.stringify(cleanData);
   } catch (e) {
-    console.error("Error parsing JSON field:", e, jsonString);
-    return [];
+    console.error("Error stringifying JSON field:", e, data);
+    return "[]";
   }
 }
 
 export default function CompanyForm({ onSubmissionSuccess }) {
   const { pb, currentUser, isLoading: authLoading } = useAuth();
   const router = useRouter();
-
+  
+  // Basic company information
   const [companyId, setCompanyId] = useState(null);
   const [companyName, setCompanyName] = useState("");
   const [companyLogo, setCompanyLogo] = useState(null);
@@ -62,7 +132,7 @@ export default function CompanyForm({ onSubmissionSuccess }) {
   const [annualTurnover, setAnnualTurnover] = useState("");
   const [companyType, setCompanyType] = useState("");
   
-  // JV Details
+  // JV Details with improved state management
   const [jvDetails, setJvDetails] = useState([]);
   const [newJvDetail, setNewJvDetail] = useState({
     name: "",
@@ -97,7 +167,9 @@ export default function CompanyForm({ onSubmissionSuccess }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFetching, setIsFetching] = useState(true);
   const [isError, setIsError] = useState(false);
+  const [fetchTimeout, setFetchTimeout] = useState(null);
 
+  // Improved data fetching with better error handling
   const fetchCompanyData = useCallback(async () => {
     if (!currentUser?.id || authLoading) {
       setIsFetching(false);
@@ -106,13 +178,15 @@ export default function CompanyForm({ onSubmissionSuccess }) {
 
     setIsFetching(true);
     setError(null);
-    try {
-      // Use a timestamp to make each request key unique
-      const timestamp = new Date().getTime();
-      const record = await pb.collection("companies").getFirstListItem(`user="${currentUser.id}"`, {
-        requestKey: `company-form-fetch-${currentUser.id}-${timestamp}`,
-      });
 
+    try {
+      // Remove requestKey to avoid auto-cancellation issues
+      // Use a simple filter instead
+      const record = await pb.collection("companies").getFirstListItem(
+        `user="${currentUser.id}"`
+      );
+
+      // Set basic company information
       setCompanyId(record.id);
       setCompanyName(record.companyName || "");
       setDescription(record.description || "");
@@ -129,10 +203,24 @@ export default function CompanyForm({ onSubmissionSuccess }) {
       setAnnualTurnover(record.annualTurnover || "");
       setCompanyType(record.companyType || "");
 
-      // Handle JSON fields
-      setJvDetails(parseJsonField(record.jvDetails));
-      setCollaborationDetails(parseJsonField(record.collaborationDetails));
-      setStandardDetails(parseJsonField(record.standardDetails));
+      // Handle JSON fields with improved parsing and debugging
+      console.log("Raw data from PocketBase:");
+      console.log("JV Details type:", typeof record.jvDetails, "Value:", record.jvDetails);
+      console.log("Collaboration Details type:", typeof record.collaborationDetails, "Value:", record.collaborationDetails);
+      console.log("Standard Details type:", typeof record.standardDetails, "Value:", record.standardDetails);
+
+      const parsedJvDetails = parseJsonField(record.jvDetails);
+      const parsedCollaborationDetails = parseJsonField(record.collaborationDetails);
+      const parsedStandardDetails = parseJsonField(record.standardDetails);
+
+      console.log("Parsed results:");
+      console.log("JV Details:", parsedJvDetails);
+      console.log("Collaboration Details:", parsedCollaborationDetails);
+      console.log("Standard Details:", parsedStandardDetails);
+
+      setJvDetails(parsedJvDetails);
+      setCollaborationDetails(parsedCollaborationDetails);
+      setStandardDetails(parsedStandardDetails);
 
       // Handle company logo
       if (record.companyLogo) {
@@ -143,45 +231,86 @@ export default function CompanyForm({ onSubmissionSuccess }) {
         setCompanyLogoUrl(null);
         setCompanyLogo(null);
       }
+
       setMessage("Company data loaded successfully.");
       setIsError(false);
     } catch (err) {
+      // Handle auto-cancellation gracefully
+      if (err.isAbort || err.name === 'AbortError' || err.message?.includes('autocancelled')) {
+        console.log("Request was cancelled, this is normal when navigating quickly");
+        return; // Don't show error for cancelled requests
+      }
+      
       if (err.status === 404) {
-        setMessage("No company details found. Please add your company.");
+        setMessage("No company details found. Please add your company information.");
         setIsError(false);
-        // Clear form if no company found
-        setCompanyId(null);
-        setCompanyName("");
-        setCompanyLogo(null);
-        setCompanyLogoUrl(null);
-        setDescription("");
-        setWebsite("");
-        setAddress("");
-        setCity("");
-        setState("");
-        setPincode("");
-        setCountry("");
-        setPhone("");
-        setEmail("");
-        setFoundedYear('');
-        setEmployeeCount("");
-        setAnnualTurnover("");
-        setCompanyType("");
-        setJvDetails([]);
-        setCollaborationDetails([]);
-        setStandardDetails([]);
+        // Reset form for new company
+        resetForm();
       } else {
         console.error("Failed to fetch company data:", err);
         setError(err.message || "Failed to load company data.");
+        setIsError(true);
       }
     } finally {
       setIsFetching(false);
     }
   }, [currentUser?.id, pb, authLoading]);
 
+  // Reset form function
+  const resetForm = () => {
+    setCompanyId(null);
+    setCompanyName("");
+    setCompanyLogo(null);
+    setCompanyLogoUrl(null);
+    setDescription("");
+    setWebsite("");
+    setAddress("");
+    setCity("");
+    setState("");
+    setPincode("");
+    setCountry("");
+    setPhone("");
+    setEmail("");
+    setFoundedYear('');
+    setEmployeeCount("");
+    setAnnualTurnover("");
+    setCompanyType("");
+    setJvDetails([]);
+    setCollaborationDetails([]);
+    setStandardDetails([]);
+  };
+
   useEffect(() => {
+  // Clear any existing timeout
+  if (fetchTimeout) {
+    clearTimeout(fetchTimeout);
+  }
+  
+  // Debounce the fetch call to prevent rapid successive requests
+  const timeout = setTimeout(() => {
     fetchCompanyData();
-  }, [fetchCompanyData]);
+  }, 100); // 100ms debounce
+  
+  setFetchTimeout(timeout);
+  
+  // Cleanup timeout on unmount
+  return () => {
+    if (timeout) {
+      clearTimeout(timeout);
+    }
+  };
+}, [fetchCompanyData]);
+
+  // Add this useEffect after the existing fetchCompanyData useEffect
+useEffect(() => {
+  // Cleanup function to cancel any pending requests when component unmounts
+  return () => {
+    // Cancel any pending PocketBase requests
+    if (pb?.cancelAllRequests) {
+      pb.cancelAllRequests();
+    }
+  };
+}, [pb]);
 
   const handleFileChange = (e) => {
     if (e.target.files && e.target.files[0]) {
@@ -195,20 +324,32 @@ export default function CompanyForm({ onSubmissionSuccess }) {
     setCompanyLogoUrl(null);
   };
 
-  // JV Details Handlers
+  // Improved JV Details Handlers
   const handleJvInputChange = (field, value) => {
-    setNewJvDetail(prev => ({ ...prev, [field]: field === 'holding' ? Number(value) : value }));
+    setNewJvDetail(prev => ({ 
+      ...prev, 
+      [field]: field === 'holding' ? Number(value) || 0 : value 
+    }));
+  };
+
+  const validateJvDetail = (jvDetail) => {
+    if (!jvDetail.name.trim()) {
+      return "JV Name is required";
+    }
+    return null;
   };
 
   const handleAddJvDetail = () => {
-    if (!newJvDetail.name) {
-      alert("JV Name is required");
+    const validationError = validateJvDetail(newJvDetail);
+    if (validationError) {
+      setError(validationError);
       return;
     }
-    
+
     const newJv = { ...newJvDetail, id: crypto.randomUUID() };
     setJvDetails(prev => [...prev, newJv]);
     setNewJvDetail({ name: "", country: "", products: "", type: "", holding: 0 });
+    setError(null);
   };
 
   const handleEditJvDetail = (id) => {
@@ -220,16 +361,18 @@ export default function CompanyForm({ onSubmissionSuccess }) {
   };
 
   const handleUpdateJvDetail = () => {
-    if (!newJvDetail.name) {
-      alert("JV Name is required");
+    const validationError = validateJvDetail(newJvDetail);
+    if (validationError) {
+      setError(validationError);
       return;
     }
-    
-    setJvDetails(prev => 
+
+    setJvDetails(prev =>
       prev.map(jv => jv.id === editingJvId ? { ...newJvDetail, id: editingJvId } : jv)
     );
     setNewJvDetail({ name: "", country: "", products: "", type: "", holding: 0 });
     setEditingJvId(null);
+    setError(null);
   };
 
   const handleRemoveJvDetail = (id) => {
@@ -240,20 +383,34 @@ export default function CompanyForm({ onSubmissionSuccess }) {
     }
   };
 
-  // Collaboration Details Handlers
+  const handleCancelJvEdit = () => {
+    setEditingJvId(null);
+    setNewJvDetail({ name: "", country: "", products: "", type: "", holding: 0 });
+  };
+
+  // Improved Collaboration Details Handlers
   const handleCollabInputChange = (field, value) => {
     setNewCollaboration(prev => ({ ...prev, [field]: value }));
   };
 
+  const validateCollaboration = (collaboration) => {
+    if (!collaboration.name.trim()) {
+      return "Collaboration Name is required";
+    }
+    return null;
+  };
+
   const handleAddCollaboration = () => {
-    if (!newCollaboration.name) {
-      alert("Collaboration Name is required");
+    const validationError = validateCollaboration(newCollaboration);
+    if (validationError) {
+      setError(validationError);
       return;
     }
-    
+
     const newCollab = { ...newCollaboration, id: crypto.randomUUID() };
     setCollaborationDetails(prev => [...prev, newCollab]);
     setNewCollaboration({ name: "", country: "", type: "" });
+    setError(null);
   };
 
   const handleEditCollaboration = (id) => {
@@ -265,16 +422,18 @@ export default function CompanyForm({ onSubmissionSuccess }) {
   };
 
   const handleUpdateCollaboration = () => {
-    if (!newCollaboration.name) {
-      alert("Collaboration Name is required");
+    const validationError = validateCollaboration(newCollaboration);
+    if (validationError) {
+      setError(validationError);
       return;
     }
-    
-    setCollaborationDetails(prev => 
+
+    setCollaborationDetails(prev =>
       prev.map(collab => collab.id === editingCollabId ? { ...newCollaboration, id: editingCollabId } : collab)
     );
     setNewCollaboration({ name: "", country: "", type: "" });
     setEditingCollabId(null);
+    setError(null);
   };
 
   const handleRemoveCollaboration = (id) => {
@@ -285,20 +444,34 @@ export default function CompanyForm({ onSubmissionSuccess }) {
     }
   };
 
-  // Standard Details Handlers
+  const handleCancelCollabEdit = () => {
+    setEditingCollabId(null);
+    setNewCollaboration({ name: "", country: "", type: "" });
+  };
+
+  // Improved Standard Details Handlers
   const handleStandardInputChange = (field, value) => {
     setNewStandard(prev => ({ ...prev, [field]: value }));
   };
 
+  const validateStandard = (standard) => {
+    if (!standard.standard.trim()) {
+      return "Standard name is required";
+    }
+    return null;
+  };
+
   const handleAddStandard = () => {
-    if (!newStandard.standard) {
-      alert("Standard name is required");
+    const validationError = validateStandard(newStandard);
+    if (validationError) {
+      setError(validationError);
       return;
     }
-    
+
     const newStd = { ...newStandard, id: crypto.randomUUID() };
     setStandardDetails(prev => [...prev, newStd]);
     setNewStandard({ standard: "", institute: "", remark: "", date: "" });
+    setError(null);
   };
 
   const handleEditStandard = (id) => {
@@ -310,16 +483,18 @@ export default function CompanyForm({ onSubmissionSuccess }) {
   };
 
   const handleUpdateStandard = () => {
-    if (!newStandard.standard) {
-      alert("Standard name is required");
+    const validationError = validateStandard(newStandard);
+    if (validationError) {
+      setError(validationError);
       return;
     }
-    
-    setStandardDetails(prev => 
+
+    setStandardDetails(prev =>
       prev.map(std => std.id === editingStandardId ? { ...newStandard, id: editingStandardId } : std)
     );
     setNewStandard({ standard: "", institute: "", remark: "", date: "" });
     setEditingStandardId(null);
+    setError(null);
   };
 
   const handleRemoveStandard = (id) => {
@@ -330,6 +505,12 @@ export default function CompanyForm({ onSubmissionSuccess }) {
     }
   };
 
+  const handleCancelStandardEdit = () => {
+    setEditingStandardId(null);
+    setNewStandard({ standard: "", institute: "", remark: "", date: "" });
+  };
+
+  // Improved form submission
   const handleSubmit = async (event) => {
     event.preventDefault();
     setIsSubmitting(true);
@@ -342,49 +523,41 @@ export default function CompanyForm({ onSubmissionSuccess }) {
       return;
     }
 
-    const formData = new FormData();
-    formData.append("user", currentUser.id);
-    formData.append("companyName", companyName);
-    formData.append("description", description);
-    formData.append("website", website);
-    formData.append("address", address);
-    formData.append("city", city);
-    formData.append("state", state);
-    formData.append("pincode", pincode);
-    formData.append("country", country);
-    formData.append("phone", phone);
-    formData.append("email", email);
-    formData.append("foundedYear", String(foundedYear));
-    formData.append("employeeCount", employeeCount);
-    formData.append("annualTurnover", annualTurnover);
-    formData.append("companyType", companyType);
-
-    // Set approval status to pending on every submission
-    formData.append("approvalStatus", "pending");
-
-    // Handle company logo
-    if (companyLogo instanceof File) {
-      formData.append("companyLogo", companyLogo);
-    } else if (companyLogo === null && companyLogoUrl === null) {
-      // If logo was removed, send empty string to clear it in PocketBase
-      formData.append("companyLogo", "");
-    }
-
-    // Stringify JSON fields and remove temporary 'id'
-    formData.append(
-      "jvDetails",
-      JSON.stringify(jvDetails.map(({ id, ...rest }) => rest))
-    );
-    formData.append(
-      "collaborationDetails",
-      JSON.stringify(collaborationDetails.map(({ id, ...rest }) => rest))
-    );
-    formData.append(
-      "standardDetails",
-      JSON.stringify(standardDetails.map(({ id, ...rest }) => rest))
-    );
-
     try {
+      const formData = new FormData();
+      formData.append("user", currentUser.id);
+      formData.append("companyName", companyName);
+      formData.append("description", description);
+      formData.append("website", website);
+      formData.append("address", address);
+      formData.append("city", city);
+      formData.append("state", state);
+      formData.append("pincode", pincode);
+      formData.append("country", country);
+      formData.append("phone", phone);
+      formData.append("email", email);
+      formData.append("foundedYear", String(foundedYear));
+      formData.append("employeeCount", employeeCount);
+      formData.append("annualTurnover", annualTurnover);
+      formData.append("companyType", companyType);
+      formData.append("approvalStatus", "pending");
+
+      // Handle company logo
+      if (companyLogo instanceof File) {
+        formData.append("companyLogo", companyLogo);
+      } else if (companyLogo === null && companyLogoUrl === null) {
+        formData.append("companyLogo", "");
+      }
+
+      // Improved JSON field handling
+      formData.append("jvDetails", stringifyJsonField(jvDetails));
+      formData.append("collaborationDetails", stringifyJsonField(collaborationDetails));
+      formData.append("standardDetails", stringifyJsonField(standardDetails));
+
+      console.log("Submitting JV Details:", stringifyJsonField(jvDetails));
+      console.log("Submitting Collaboration Details:", stringifyJsonField(collaborationDetails));
+      console.log("Submitting Standard Details:", stringifyJsonField(standardDetails));
+
       if (companyId) {
         await pb.collection("companies").update(companyId, formData);
         setMessage("Company details updated successfully! Awaiting admin approval.");
@@ -393,6 +566,7 @@ export default function CompanyForm({ onSubmissionSuccess }) {
         setMessage("Company details added successfully! Awaiting admin approval.");
         setCompanyId(newRecord.id);
       }
+
       setIsError(false);
       if (onSubmissionSuccess) {
         onSubmissionSuccess();
@@ -415,557 +589,660 @@ export default function CompanyForm({ onSubmissionSuccess }) {
   }
 
   return (
-    <Card className="w-full">
+    <Card className="w-full max-w-6xl mx-auto">
       <CardHeader>
-        <CardTitle>{companyId ? "Edit Company Details" : "Add Company Details"}</CardTitle>
+        <CardTitle className="text-2xl font-bold">
+          {companyId ? "Edit Company Details" : "Add Company Details"}
+        </CardTitle>
       </CardHeader>
       <CardContent>
-        {error && <p className="text-red-500 text-center mb-4">{error}</p>}
-        {message && <p className={`text-center mb-4 ${isError ? "text-red-500" : "text-green-500"}`}>{message}</p>}
+        {error && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+        {message && (
+          <Alert variant={isError ? "destructive" : "default"} className="mb-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{message}</AlertDescription>
+          </Alert>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-8">
           {/* Basic Company Information */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="col-span-full">
-              <h3 className="text-lg font-semibold mb-2">Basic Information</h3>
-            </div>
-            <div>
-              <Label htmlFor="companyName">Company Name*</Label>
-              <Input
-                id="companyName"
-                type="text"
-                required
-                value={companyName}
-                onChange={(e) => setCompanyName(e.target.value)}
-                disabled={isSubmitting}
-              />
-            </div>
-            <div>
-              <Label htmlFor="companyLogo">Company Logo</Label>
-              <Input id="companyLogo" type="file" accept="image/*" onChange={handleFileChange} disabled={isSubmitting} />
-              {companyLogoUrl && (
-                <div className="mt-2 flex items-center gap-2">
-                  <img src={companyLogoUrl || "/placeholder.svg"} alt="Company Logo Preview" className="h-16 w-16 object-contain" />
-                  <Button type="button" variant="ghost" size="icon" onClick={handleRemoveLogo} disabled={isSubmitting}>
-                    <X className="h-4 w-4" />
-                    <span className="sr-only">Remove logo</span>
-                  </Button>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Basic Information</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="companyName">Company Name*</Label>
+                  <Input
+                    id="companyName"
+                    type="text"
+                    required
+                    value={companyName}
+                    onChange={(e) => setCompanyName(e.target.value)}
+                    disabled={isSubmitting}
+                  />
                 </div>
-              )}
-            </div>
-            <div className="col-span-full">
-              <Label htmlFor="description">Description</Label>
-              <Textarea
-                id="description"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={3}
-                disabled={isSubmitting}
-              />
-            </div>
-            <div>
-              <Label htmlFor="website">Website</Label>
-              <Input
-                id="website"
-                type="url"
-                placeholder="https://example.com"
-                value={website}
-                onChange={(e) => setWebsite(e.target.value)}
-                disabled={isSubmitting}
-              />
-            </div>
-            <div>
-              <Label htmlFor="email">Company Email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                disabled={isSubmitting}
-              />
-            </div>
-            <div>
-              <Label htmlFor="phone">Phone</Label>
-              <Input
-                id="phone"
-                type="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                disabled={isSubmitting}
-              />
-            </div>
-            <div>
-              <Label htmlFor="foundedYear">Founded Year</Label>
-              <Input
-                id="foundedYear"
-                type="number"
-                value={foundedYear}
-                onChange={(e) => setFoundedYear(e.target.value)}
-                disabled={isSubmitting}
-              />
-            </div>
-            <div>
-              <Label htmlFor="employeeCount">Employee Count</Label>
-              <Input
-                id="employeeCount"
-                type="text"
-                value={employeeCount}
-                onChange={(e) => setEmployeeCount(e.target.value)}
-                disabled={isSubmitting}
-              />
-            </div>
-            <div>
-              <Label htmlFor="annualTurnover">Annual Turnover</Label>
-              <Input
-                id="annualTurnover"
-                type="text"
-                value={annualTurnover}
-                onChange={(e) => setAnnualTurnover(e.target.value)}
-                disabled={isSubmitting}
-              />
-            </div>
-            <div>
-              <Label htmlFor="companyType">Company Type</Label>
-              <Select value={companyType} onValueChange={setCompanyType} disabled={isSubmitting}>
-                <SelectTrigger id="companyType">
-                  <SelectValue placeholder="Select type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {companyTypes.map((type) => (
-                    <SelectItem key={type} value={type}>
-                      {type}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label htmlFor="address">Address</Label>
-              <Input
-                id="address"
-                type="text"
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                disabled={isSubmitting}
-              />
-            </div>
-            <div>
-              <Label htmlFor="city">City</Label>
-              <Input
-                id="city"
-                type="text"
-                value={city}
-                onChange={(e) => setCity(e.target.value)}
-                disabled={isSubmitting}
-              />
-            </div>
-            <div>
-              <Label htmlFor="state">State</Label>
-              <Input
-                id="state"
-                type="text"
-                value={state}
-                onChange={(e) => setState(e.target.value)}
-                disabled={isSubmitting}
-              />
-            </div>
-            <div>
-              <Label htmlFor="pincode">Pincode</Label>
-              <Input
-                id="pincode"
-                type="text"
-                value={pincode}
-                onChange={(e) => setPincode(e.target.value)}
-                disabled={isSubmitting}
-              />
-            </div>
-            <div>
-              <Label htmlFor="country">Country</Label>
-              <Select value={country} onValueChange={setCountry} disabled={isSubmitting}>
-                <SelectTrigger id="country">
-                  <SelectValue placeholder="Select country" />
-                </SelectTrigger>
-                <SelectContent>
-                  {countries.map((c) => (
-                    <SelectItem key={c} value={c}>
-                      {c}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+                <div>
+                  <Label htmlFor="companyLogo">Company Logo</Label>
+                  <Input 
+                    id="companyLogo" 
+                    type="file" 
+                    accept="image/*" 
+                    onChange={handleFileChange} 
+                    disabled={isSubmitting} 
+                  />
+                  {companyLogoUrl && (
+                    <div className="mt-2 flex items-center gap-2">
+                      <img 
+                        src={companyLogoUrl || "/placeholder.svg"} 
+                        alt="Company Logo Preview" 
+                        className="h-16 w-16 object-contain border rounded" 
+                      />
+                      <Button 
+                        type="button" 
+                        variant="ghost" 
+                        size="icon" 
+                        onClick={handleRemoveLogo} 
+                        disabled={isSubmitting}
+                      >
+                        <X className="h-4 w-4" />
+                        <span className="sr-only">Remove logo</span>
+                      </Button>
+                    </div>
+                  )}
+                </div>
+                <div className="col-span-full">
+                  <Label htmlFor="description">Description</Label>
+                  <Textarea
+                    id="description"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    rows={3}
+                    disabled={isSubmitting}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="website">Website</Label>
+                  <Input
+                    id="website"
+                    type="url"
+                    placeholder="https://example.com"
+                    value={website}
+                    onChange={(e) => setWebsite(e.target.value)}
+                    disabled={isSubmitting}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="email">Company Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    disabled={isSubmitting}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="phone">Phone</Label>
+                  <Input
+                    id="phone"
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    disabled={isSubmitting}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="foundedYear">Founded Year</Label>
+                  <Input
+                    id="foundedYear"
+                    type="number"
+                    value={foundedYear}
+                    onChange={(e) => setFoundedYear(e.target.value)}
+                    disabled={isSubmitting}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="employeeCount">Employee Count</Label>
+                  <Input
+                    id="employeeCount"
+                    type="text"
+                    value={employeeCount}
+                    onChange={(e) => setEmployeeCount(e.target.value)}
+                    disabled={isSubmitting}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="annualTurnover">Annual Turnover</Label>
+                  <Input
+                    id="annualTurnover"
+                    type="text"
+                    value={annualTurnover}
+                    onChange={(e) => setAnnualTurnover(e.target.value)}
+                    disabled={isSubmitting}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="companyType">Company Type</Label>
+                  <Select value={companyType} onValueChange={setCompanyType} disabled={isSubmitting}>
+                    <SelectTrigger id="companyType">
+                      <SelectValue placeholder="Select type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {companyTypes.map((type) => (
+                        <SelectItem key={type} value={type}>
+                          {type}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="address">Address</Label>
+                  <Input
+                    id="address"
+                    type="text"
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                    disabled={isSubmitting}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="city">City</Label>
+                  <Input
+                    id="city"
+                    type="text"
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    disabled={isSubmitting}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="state">State</Label>
+                  <Input
+                    id="state"
+                    type="text"
+                    value={state}
+                    onChange={(e) => setState(e.target.value)}
+                    disabled={isSubmitting}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="pincode">Pincode</Label>
+                  <Input
+                    id="pincode"
+                    type="text"
+                    value={pincode}
+                    onChange={(e) => setPincode(e.target.value)}
+                    disabled={isSubmitting}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="country">Country</Label>
+                  <Select value={country} onValueChange={setCountry} disabled={isSubmitting}>
+                    <SelectTrigger id="country">
+                      <SelectValue placeholder="Select country" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {countries.map((c) => (
+                        <SelectItem key={c} value={c}>
+                          {c}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* JV Details Section */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold">JV Details</h3>
-            
-            {/* Input Form for JV Details */}
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-2 items-end border p-4 rounded-md">
-              <div>
-                <Label htmlFor="jv-name">Name*</Label>
-                <Input 
-                  id="jv-name" 
-                  value={newJvDetail.name} 
-                  onChange={(e) => handleJvInputChange('name', e.target.value)}
-                  disabled={isSubmitting}
-                />
-              </div>
-              <div>
-                <Label htmlFor="jv-country">Country</Label>
-                <Input 
-                  id="jv-country" 
-                  value={newJvDetail.country} 
-                  onChange={(e) => handleJvInputChange('country', e.target.value)}
-                  disabled={isSubmitting}
-                />
-              </div>
-              <div>
-                <Label htmlFor="jv-products">Products</Label>
-                <Input 
-                  id="jv-products" 
-                  value={newJvDetail.products} 
-                  onChange={(e) => handleJvInputChange('products', e.target.value)}
-                  disabled={isSubmitting}
-                />
-              </div>
-              <div>
-                <Label htmlFor="jv-type">Type</Label>
-                <Input 
-                  id="jv-type" 
-                  value={newJvDetail.type} 
-                  onChange={(e) => handleJvInputChange('type', e.target.value)}
-                  disabled={isSubmitting}
-                />
-              </div>
-              <div>
-                <Label htmlFor="jv-holding">Holding (%)</Label>
-                <Input 
-                  id="jv-holding" 
-                  type="number" 
-                  value={newJvDetail.holding} 
-                  onChange={(e) => handleJvInputChange('holding', e.target.value)}
-                  disabled={isSubmitting}
-                />
-              </div>
-              <div className="md:col-span-5 flex justify-end mt-2">
-                {editingJvId ? (
-                  <Button 
-                    type="button" 
-                    onClick={handleUpdateJvDetail} 
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                JV Details
+                <Badge variant="secondary">{jvDetails.length}</Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Input Form for JV Details */}
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-4 p-4 border rounded-lg bg-muted/50">
+                <div>
+                  <Label htmlFor="jv-name">Name*</Label>
+                  <Input
+                    id="jv-name"
+                    value={newJvDetail.name}
+                    onChange={(e) => handleJvInputChange('name', e.target.value)}
                     disabled={isSubmitting}
-                    className="flex items-center"
-                  >
-                    <Save className="h-4 w-4 mr-2" /> Update JV
-                  </Button>
-                ) : (
-                  <Button 
-                    type="button" 
-                    onClick={handleAddJvDetail} 
+                    placeholder="Enter JV name"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="jv-country">Country</Label>
+                  <Input
+                    id="jv-country"
+                    value={newJvDetail.country}
+                    onChange={(e) => handleJvInputChange('country', e.target.value)}
                     disabled={isSubmitting}
-                    className="flex items-center"
-                  >
-                    <Plus className="h-4 w-4 mr-2" /> Add JV
-                  </Button>
-                )}
+                    placeholder="Enter country"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="jv-products">Products</Label>
+                  <Input
+                    id="jv-products"
+                    value={newJvDetail.products}
+                    onChange={(e) => handleJvInputChange('products', e.target.value)}
+                    disabled={isSubmitting}
+                    placeholder="Enter products"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="jv-type">Type</Label>
+                  <Input
+                    id="jv-type"
+                    value={newJvDetail.type}
+                    onChange={(e) => handleJvInputChange('type', e.target.value)}
+                    disabled={isSubmitting}
+                    placeholder="Enter type"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="jv-holding">Holding (%)</Label>
+                  <Input
+                    id="jv-holding"
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={newJvDetail.holding}
+                    onChange={(e) => handleJvInputChange('holding', e.target.value)}
+                    disabled={isSubmitting}
+                    placeholder="0"
+                  />
+                </div>
+                <div className="md:col-span-5 flex justify-end gap-2 mt-2">
+                  {editingJvId && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleCancelJvEdit}
+                      disabled={isSubmitting}
+                    >
+                      Cancel
+                    </Button>
+                  )}
+                  {editingJvId ? (
+                    <Button
+                      type="button"
+                      onClick={handleUpdateJvDetail}
+                      disabled={isSubmitting}
+                      className="flex items-center"
+                    >
+                      <Save className="h-4 w-4 mr-2" /> Update JV
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      onClick={handleAddJvDetail}
+                      disabled={isSubmitting}
+                      className="flex items-center"
+                    >
+                      <Plus className="h-4 w-4 mr-2" /> Add JV
+                    </Button>
+                  )}
+                </div>
               </div>
-            </div>
-            
-            {/* Table for JV Details */}
-            {jvDetails.length > 0 ? (
-              <div className="border rounded-md overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Country</TableHead>
-                      <TableHead>Products</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Holding (%)</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {jvDetails.map((jv) => (
-                      <TableRow key={jv.id}>
-                        <TableCell>{jv.name}</TableCell>
-                        <TableCell>{jv.country}</TableCell>
-                        <TableCell>{jv.products}</TableCell>
-                        <TableCell>{jv.type}</TableCell>
-                        <TableCell>{jv.holding}</TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button 
-                              type="button" 
-                              variant="ghost" 
-                              size="icon" 
-                              onClick={() => handleEditJvDetail(jv.id)}
-                              disabled={isSubmitting}
-                            >
-                              <Edit className="h-4 w-4" />
-                              <span className="sr-only">Edit</span>
-                            </Button>
-                            <Button 
-                              type="button" 
-                              variant="ghost" 
-                              size="icon" 
-                              onClick={() => handleRemoveJvDetail(jv.id)}
-                              disabled={isSubmitting}
-                            >
-                              <Trash className="h-4 w-4" />
-                              <span className="sr-only">Delete</span>
-                            </Button>
-                          </div>
-                        </TableCell>
+
+              {/* Table for JV Details */}
+              {jvDetails.length > 0 ? (
+                <div className="border rounded-lg overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Country</TableHead>
+                        <TableHead>Products</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead>Holding (%)</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">No JV details added yet.</p>
-            )}
-          </div>
+                    </TableHeader>
+                    <TableBody>
+                      {jvDetails.map((jv) => (
+                        <TableRow key={jv.id} className={editingJvId === jv.id ? "bg-muted/50" : ""}>
+                          <TableCell className="font-medium">{jv.name}</TableCell>
+                          <TableCell>{jv.country || "-"}</TableCell>
+                          <TableCell>{jv.products || "-"}</TableCell>
+                          <TableCell>{jv.type || "-"}</TableCell>
+                          <TableCell>{jv.holding}%</TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-1">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleEditJvDetail(jv.id)}
+                                disabled={isSubmitting || editingJvId === jv.id}
+                              >
+                                <Edit className="h-4 w-4" />
+                                <span className="sr-only">Edit</span>
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleRemoveJvDetail(jv.id)}
+                                disabled={isSubmitting}
+                              >
+                                <Trash className="h-4 w-4" />
+                                <span className="sr-only">Delete</span>
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <p>No JV details added yet.</p>
+                  <p className="text-sm">Add your first JV detail using the form above.</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           {/* Collaboration Details Section */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold">Collaboration Details</h3>
-            
-            {/* Input Form for Collaboration Details */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 items-end border p-4 rounded-md">
-              <div>
-                <Label htmlFor="collab-name">Name*</Label>
-                <Input 
-                  id="collab-name" 
-                  value={newCollaboration.name} 
-                  onChange={(e) => handleCollabInputChange('name', e.target.value)}
-                  disabled={isSubmitting}
-                />
-              </div>
-              <div>
-                <Label htmlFor="collab-country">Country</Label>
-                <Input 
-                  id="collab-country" 
-                  value={newCollaboration.country} 
-                  onChange={(e) => handleCollabInputChange('country', e.target.value)}
-                  disabled={isSubmitting}
-                />
-              </div>
-              <div>
-                <Label htmlFor="collab-type">Type</Label>
-                <Input 
-                  id="collab-type" 
-                  value={newCollaboration.type} 
-                  onChange={(e) => handleCollabInputChange('type', e.target.value)}
-                  disabled={isSubmitting}
-                />
-              </div>
-              <div className="md:col-span-3 flex justify-end mt-2">
-                {editingCollabId ? (
-                  <Button 
-                    type="button" 
-                    onClick={handleUpdateCollaboration} 
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                Collaboration Details
+                <Badge variant="secondary">{collaborationDetails.length}</Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Input Form for Collaboration Details */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border rounded-lg bg-muted/50">
+                <div>
+                  <Label htmlFor="collab-name">Name*</Label>
+                  <Input
+                    id="collab-name"
+                    value={newCollaboration.name}
+                    onChange={(e) => handleCollabInputChange('name', e.target.value)}
                     disabled={isSubmitting}
-                    className="flex items-center"
-                  >
-                    <Save className="h-4 w-4 mr-2" /> Update Collaboration
-                  </Button>
-                ) : (
-                  <Button 
-                    type="button" 
-                    onClick={handleAddCollaboration} 
+                    placeholder="Enter collaboration name"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="collab-country">Country</Label>
+                  <Input
+                    id="collab-country"
+                    value={newCollaboration.country}
+                    onChange={(e) => handleCollabInputChange('country', e.target.value)}
                     disabled={isSubmitting}
-                    className="flex items-center"
-                  >
-                    <Plus className="h-4 w-4 mr-2" /> Add Collaboration
-                  </Button>
-                )}
+                    placeholder="Enter country"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="collab-type">Type</Label>
+                  <Input
+                    id="collab-type"
+                    value={newCollaboration.type}
+                    onChange={(e) => handleCollabInputChange('type', e.target.value)}
+                    disabled={isSubmitting}
+                    placeholder="Enter type"
+                  />
+                </div>
+                <div className="md:col-span-3 flex justify-end gap-2 mt-2">
+                  {editingCollabId && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleCancelCollabEdit}
+                      disabled={isSubmitting}
+                    >
+                      Cancel
+                    </Button>
+                  )}
+                  {editingCollabId ? (
+                    <Button
+                      type="button"
+                      onClick={handleUpdateCollaboration}
+                      disabled={isSubmitting}
+                      className="flex items-center"
+                    >
+                      <Save className="h-4 w-4 mr-2" /> Update Collaboration
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      onClick={handleAddCollaboration}
+                      disabled={isSubmitting}
+                      className="flex items-center"
+                    >
+                      <Plus className="h-4 w-4 mr-2" /> Add Collaboration
+                    </Button>
+                  )}
+                </div>
               </div>
-            </div>
-            
-            {/* Table for Collaboration Details */}
-            {collaborationDetails.length > 0 ? (
-              <div className="border rounded-md overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Country</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {collaborationDetails.map((collab) => (
-                      <TableRow key={collab.id}>
-                        <TableCell>{collab.name}</TableCell>
-                        <TableCell>{collab.country}</TableCell>
-                        <TableCell>{collab.type}</TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button 
-                              type="button" 
-                              variant="ghost" 
-                              size="icon" 
-                              onClick={() => handleEditCollaboration(collab.id)}
-                              disabled={isSubmitting}
-                            >
-                              <Edit className="h-4 w-4" />
-                              <span className="sr-only">Edit</span>
-                            </Button>
-                            <Button 
-                              type="button" 
-                              variant="ghost" 
-                              size="icon" 
-                              onClick={() => handleRemoveCollaboration(collab.id)}
-                              disabled={isSubmitting}
-                            >
-                              <Trash className="h-4 w-4" />
-                              <span className="sr-only">Delete</span>
-                            </Button>
-                          </div>
-                        </TableCell>
+
+              {/* Table for Collaboration Details */}
+              {collaborationDetails.length > 0 ? (
+                <div className="border rounded-lg overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Country</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">No collaboration details added yet.</p>
-            )}
-          </div>
+                    </TableHeader>
+                    <TableBody>
+                      {collaborationDetails.map((collab) => (
+                        <TableRow key={collab.id} className={editingCollabId === collab.id ? "bg-muted/50" : ""}>
+                          <TableCell className="font-medium">{collab.name}</TableCell>
+                          <TableCell>{collab.country || "-"}</TableCell>
+                          <TableCell>{collab.type || "-"}</TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-1">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleEditCollaboration(collab.id)}
+                                disabled={isSubmitting || editingCollabId === collab.id}
+                              >
+                                <Edit className="h-4 w-4" />
+                                <span className="sr-only">Edit</span>
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleRemoveCollaboration(collab.id)}
+                                disabled={isSubmitting}
+                              >
+                                <Trash className="h-4 w-4" />
+                                <span className="sr-only">Delete</span>
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <p>No collaboration details added yet.</p>
+                  <p className="text-sm">Add your first collaboration using the form above.</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           {/* Standard Details Section */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold">Standard Details</h3>
-            
-            {/* Input Form for Standard Details */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-2 items-end border p-4 rounded-md">
-              <div>
-                <Label htmlFor="std-standard">Standard*</Label>
-                <Input 
-                  id="std-standard" 
-                  value={newStandard.standard} 
-                  onChange={(e) => handleStandardInputChange('standard', e.target.value)}
-                  disabled={isSubmitting}
-                />
-              </div>
-              <div>
-                <Label htmlFor="std-institute">Institute</Label>
-                <Input 
-                  id="std-institute" 
-                  value={newStandard.institute} 
-                  onChange={(e) => handleStandardInputChange('institute', e.target.value)}
-                  disabled={isSubmitting}
-                />
-              </div>
-              <div>
-                <Label htmlFor="std-remark">Remark</Label>
-                <Input 
-                  id="std-remark" 
-                  value={newStandard.remark} 
-                  onChange={(e) => handleStandardInputChange('remark', e.target.value)}
-                  disabled={isSubmitting}
-                />
-              </div>
-              <div>
-                <Label htmlFor="std-date">Date</Label>
-                <Input 
-                  id="std-date" 
-                  type="date" 
-                  value={newStandard.date} 
-                  onChange={(e) => handleStandardInputChange('date', e.target.value)}
-                  disabled={isSubmitting}
-                />
-              </div>
-              <div className="md:col-span-4 flex justify-end mt-2">
-                {editingStandardId ? (
-                  <Button 
-                    type="button" 
-                    onClick={handleUpdateStandard} 
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                Standard Details
+                <Badge variant="secondary">{standardDetails.length}</Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Input Form for Standard Details */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 border rounded-lg bg-muted/50">
+                <div>
+                  <Label htmlFor="std-standard">Standard*</Label>
+                  <Input
+                    id="std-standard"
+                    value={newStandard.standard}
+                    onChange={(e) => handleStandardInputChange('standard', e.target.value)}
                     disabled={isSubmitting}
-                    className="flex items-center"
-                  >
-                    <Save className="h-4 w-4 mr-2" /> Update Standard
-                  </Button>
-                ) : (
-                  <Button 
-                    type="button" 
-                    onClick={handleAddStandard} 
+                    placeholder="Enter standard name"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="std-institute">Institute</Label>
+                  <Input
+                    id="std-institute"
+                    value={newStandard.institute}
+                    onChange={(e) => handleStandardInputChange('institute', e.target.value)}
                     disabled={isSubmitting}
-                    className="flex items-center"
-                  >
-                    <Plus className="h-4 w-4 mr-2" /> Add Standard
-                  </Button>
-                )}
+                    placeholder="Enter institute"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="std-remark">Remark</Label>
+                  <Input
+                    id="std-remark"
+                    value={newStandard.remark}
+                    onChange={(e) => handleStandardInputChange('remark', e.target.value)}
+                    disabled={isSubmitting}
+                    placeholder="Enter remark"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="std-date">Date</Label>
+                  <Input
+                    id="std-date"
+                    type="date"
+                    value={newStandard.date}
+                    onChange={(e) => handleStandardInputChange('date', e.target.value)}
+                    disabled={isSubmitting}
+                  />
+                </div>
+                <div className="md:col-span-4 flex justify-end gap-2 mt-2">
+                  {editingStandardId && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleCancelStandardEdit}
+                      disabled={isSubmitting}
+                    >
+                      Cancel
+                    </Button>
+                  )}
+                  {editingStandardId ? (
+                    <Button
+                      type="button"
+                      onClick={handleUpdateStandard}
+                      disabled={isSubmitting}
+                      className="flex items-center"
+                    >
+                      <Save className="h-4 w-4 mr-2" /> Update Standard
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      onClick={handleAddStandard}
+                      disabled={isSubmitting}
+                      className="flex items-center"
+                    >
+                      <Plus className="h-4 w-4 mr-2" /> Add Standard
+                    </Button>
+                  )}
+                </div>
               </div>
-            </div>
-            
-            {/* Table for Standard Details */}
-            {standardDetails.length > 0 ? (
-              <div className="border rounded-md overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Standard</TableHead>
-                      <TableHead>Institute</TableHead>
-                      <TableHead>Remark</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {standardDetails.map((std) => (
-                      <TableRow key={std.id}>
-                        <TableCell>{std.standard}</TableCell>
-                        <TableCell>{std.institute}</TableCell>
-                        <TableCell>{std.remark}</TableCell>
-                        <TableCell>{std.date}</TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button 
-                              type="button" 
-                              variant="ghost" 
-                              size="icon" 
-                              onClick={() => handleEditStandard(std.id)}
-                              disabled={isSubmitting}
-                            >
-                              <Edit className="h-4 w-4" />
-                              <span className="sr-only">Edit</span>
-                            </Button>
-                            <Button 
-                              type="button" 
-                              variant="ghost" 
-                              size="icon" 
-                              onClick={() => handleRemoveStandard(std.id)}
-                              disabled={isSubmitting}
-                            >
-                              <Trash className="h-4 w-4" />
-                              <span className="sr-only">Delete</span>
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">No standard details added yet.</p>
-            )}
-          </div>
 
-          <div className="flex justify-end space-x-2">
-            <Button 
-              type="button" 
-              variant="outline" 
+              {/* Table for Standard Details */}
+              {standardDetails.length > 0 ? (
+                <div className="border rounded-lg overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Standard</TableHead>
+                        <TableHead>Institute</TableHead>
+                        <TableHead>Remark</TableHead>
+                        <TableHead>Date</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {standardDetails.map((std) => (
+                        <TableRow key={std.id} className={editingStandardId === std.id ? "bg-muted/50" : ""}>
+                          <TableCell className="font-medium">{std.standard}</TableCell>
+                          <TableCell>{std.institute || "-"}</TableCell>
+                          <TableCell>{std.remark || "-"}</TableCell>
+                          <TableCell>{std.date || "-"}</TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-1">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleEditStandard(std.id)}
+                                disabled={isSubmitting || editingStandardId === std.id}
+                              >
+                                <Edit className="h-4 w-4" />
+                                <span className="sr-only">Edit</span>
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleRemoveStandard(std.id)}
+                                disabled={isSubmitting}
+                              >
+                                <Trash className="h-4 w-4" />
+                                <span className="sr-only">Delete</span>
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <p>No standard details added yet.</p>
+                  <p className="text-sm">Add your first standard using the form above.</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Form Actions */}
+          <div className="flex justify-end space-x-2 pt-4">
+            <Button
+              type="button"
+              variant="outline"
               onClick={() => router.push('/dashboard')}
               disabled={isSubmitting}
             >
               Cancel
             </Button>
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               disabled={isSubmitting}
               className="min-w-[120px]"
             >
