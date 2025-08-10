@@ -1,100 +1,107 @@
 "use client";
+
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import AuthGuard from "@/components/auth-guard";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import LoadingSpinner from "@/components/ui/loading-spinner";
 import { getClientPb } from "@/lib/pocketbase";
+import { User, Building2, Package, Plus, Edit, LogOut, CheckCircle, Clock, XCircle, Mail, AlertTriangle, TrendingUp, Eye } from 'lucide-react';
 
 export default function DashboardPage() {
-  const { currentUser, isLoading, logout, refreshAuth } = useAuth();
+  const { currentUser, isLoading, logout } = useAuth();
   const router = useRouter();
   const pb = getClientPb();
   
   const [companyData, setCompanyData] = useState(null);
-  const [isFetchingCompany, setIsFetchingCompany] = useState(true);
-  const [fetchTimeout, setFetchTimeout] = useState(null);
+  const [productsData, setProductsData] = useState([]);
+  const [isFetchingData, setIsFetchingData] = useState(true);
+  const [stats, setStats] = useState({
+    totalProducts: 0,
+    approvedProducts: 0,
+    pendingProducts: 0,
+    rejectedProducts: 0
+  });
 
-  const fetchCompanyDetails = useCallback(async () => {
+  const fetchDashboardData = useCallback(async (signal) => {
     if (!currentUser?.id || !pb.authStore.isValid) {
-      setCompanyData(null);
-      setIsFetchingCompany(false);
+      setIsFetchingData(false);
       return;
     }
 
-    if (currentUser.userRole !== "seller") {
-      setCompanyData(null);
-      setIsFetchingCompany(false);
-      return;
-    }
-
-    setIsFetchingCompany(true);
+    setIsFetchingData(true);
     
     try {
-      // Remove requestKey to avoid auto-cancellation issues
-      const record = await pb.collection("companies").getFirstListItem(
-        `user="${currentUser.id}"`
-      );
-      setCompanyData(record);
+      // Fetch company data if seller
+      if (currentUser.userRole === "seller") {
+        try {
+          const company = await pb.collection("companies").getFirstListItem(
+            `user="${currentUser.id}"`,
+            { signal }
+          );
+          setCompanyData(company);
+
+          // Fetch products for stats
+          const products = await pb.collection("products").getList(1, 50, {
+            filter: `seller="${currentUser.id}"`,
+            sort: "-created",
+            signal
+          });
+          
+          setProductsData(products.items);
+          
+          // Calculate stats
+          const totalProducts = products.items.length;
+          const approvedProducts = products.items.filter(p => p.approvalStatus === "approved").length;
+          const pendingProducts = products.items.filter(p => p.approvalStatus === "pending").length;
+          const rejectedProducts = products.items.filter(p => p.approvalStatus === "rejected").length;
+          
+          setStats({
+            totalProducts,
+            approvedProducts,
+            pendingProducts,
+            rejectedProducts
+          });
+        } catch (err) {
+          if (err.name === 'AbortError' || err.message?.includes('autocancelled')) {
+            return;
+          }
+          if (err.status === 404) {
+            setCompanyData(null);
+          }
+        }
+      }
     } catch (err) {
-      // Handle auto-cancellation gracefully
-      if (err.isAbort || err.name === 'AbortError' || err.message?.includes('autocancelled')) {
+      if (err.name === 'AbortError' || err.message?.includes('autocancelled')) {
         console.log("Request was cancelled, this is normal when navigating quickly");
-        return; // Don't show error for cancelled requests
+        return;
       }
-      
-      if (err.status === 404) {
-        setCompanyData(null); // No company found for this user
-      } else {
-        console.error("Failed to fetch company details:", err);
-      }
+      console.error("Failed to fetch dashboard data:", err);
     } finally {
-      setIsFetchingCompany(false);
+      setIsFetchingData(false);
     }
   }, [currentUser, pb]);
 
-  // Debounced effect to prevent rapid successive requests
   useEffect(() => {
-    // Clear any existing timeout
-    if (fetchTimeout) {
-      clearTimeout(fetchTimeout);
+    if (!currentUser?.id) {
+      setIsFetchingData(false);
+      return;
     }
 
-    // Only fetch if we have a current user
-    if (currentUser?.id) {
-      // Debounce the fetch call to prevent rapid successive requests
-      const timeout = setTimeout(() => {
-        fetchCompanyDetails();
-      }, 100); // 100ms debounce
-      
-      setFetchTimeout(timeout);
-      
-      // Cleanup timeout
-      return () => {
-        if (timeout) {
-          clearTimeout(timeout);
-        }
-      };
-    } else {
-      setIsFetchingCompany(false);
-    }
-  }, [currentUser?.id, fetchCompanyDetails]);
+    const controller = new AbortController();
+    
+    const timeout = setTimeout(() => {
+      fetchDashboardData(controller.signal);
+    }, 100);
 
-  // Cleanup function to cancel any pending requests when component unmounts
-  useEffect(() => {
     return () => {
-      // Cancel any pending PocketBase requests
-      if (pb?.cancelAllRequests) {
-        pb.cancelAllRequests();
-      }
-      // Clear any pending timeouts
-      if (fetchTimeout) {
-        clearTimeout(fetchTimeout);
-      }
+      controller.abort();
+      clearTimeout(timeout);
     };
-  }, [pb, fetchTimeout]);
+  }, [currentUser?.id, fetchDashboardData]);
 
   const handleLogout = () => {
     logout();
@@ -110,159 +117,387 @@ export default function DashboardPage() {
   }
 
   if (!currentUser) {
-    return null; // AuthGuard will redirect
+    return null;
   }
 
   const isEmailVerified = currentUser.verified;
   const isProfileApproved = currentUser.profileStatus === "approved";
+  const canListProducts = currentUser.userRole === "seller" && companyData?.approvalStatus === "approved";
 
   return (
     <AuthGuard redirectIfNotAuthenticated="/login">
-      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
-        <Card className="w-full max-w-2xl">
-          <CardHeader>
-            <CardTitle className="text-3xl text-center">Dashboard</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="text-center">
-              <h2 className="text-xl font-semibold">
-                Welcome, {currentUser.firstName || currentUser.email}!
-              </h2>
-              <p className="text-gray-600">Your role: {currentUser.userRole}</p>
-            </div>
-
-            {!isEmailVerified && (
-              <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4" role="alert">
-                <p className="font-bold">Email Not Verified</p>
-                <p>Please verify your email to access all features.</p>
-                <Button onClick={() => router.push("/verify-otp")} className="mt-2">
-                  Verify Email Now
+      <div className="min-h-screen bg-gray-50">
+        {/* Header */}
+        <div className="bg-white shadow-sm border-b">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between items-center py-6">
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+                <p className="text-gray-600">
+                  Welcome back, {currentUser.firstName || currentUser.email}!
+                </p>
+              </div>
+              <div className="flex items-center space-x-4">
+                <Badge variant="outline" className="text-sm">
+                  {currentUser.userRole}
+                </Badge>
+                <Button
+                  onClick={handleLogout}
+                  variant="outline"
+                  size="sm"
+                  className="text-red-600 hover:text-red-700"
+                >
+                  <LogOut className="w-4 h-4 mr-2" />
+                  Logout
                 </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {/* Status Alerts */}
+          <div className="space-y-4 mb-8">
+            {!isEmailVerified && (
+              <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-r-lg">
+                <div className="flex items-center">
+                  <Mail className="w-5 h-5 text-yellow-400 mr-3" />
+                  <div className="flex-1">
+                    <p className="font-medium text-yellow-800">Email Not Verified</p>
+                    <p className="text-yellow-700 text-sm">Please verify your email to access all features.</p>
+                  </div>
+                  <Button 
+                    onClick={() => router.push("/verify-otp")} 
+                    size="sm"
+                    className="ml-4"
+                  >
+                    Verify Now
+                  </Button>
+                </div>
               </div>
             )}
 
             {isEmailVerified && !isProfileApproved && (
-              <div className="bg-blue-100 border-l-4 border-blue-500 text-blue-700 p-4" role="alert">
-                <p className="font-bold">Profile Under Review</p>
-                <p>Your profile is currently under review by an admin. You will be notified once it's approved.</p>
-                <p className="text-sm mt-1">Typically, this takes up to 48 hours.</p>
+              <div className="bg-blue-50 border-l-4 border-blue-400 p-4 rounded-r-lg">
+                <div className="flex items-center">
+                  <Clock className="w-5 h-5 text-blue-400 mr-3" />
+                  <div>
+                    <p className="font-medium text-blue-800">Profile Under Review</p>
+                    <p className="text-blue-700 text-sm">Your profile is currently under review by an admin. Typically takes up to 48 hours.</p>
+                  </div>
+                </div>
               </div>
             )}
+          </div>
 
-            {isEmailVerified && isProfileApproved && (
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold">Account Actions</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Button onClick={() => router.push("/dashboard/profile")}>
-                    Edit Profile
-                  </Button>
-                  {currentUser.userRole === "seller" && (
-                    <Button onClick={() => router.push("/dashboard/company")}>
-                      {companyData ? "Edit Company Details" : "Add Company Details"}
-                    </Button>
-                  )}
-                </div>
+          {/* Stats Cards for Sellers */}
+          {currentUser.userRole === "seller" && companyData && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Total Products</p>
+                      <p className="text-3xl font-bold text-gray-900">{stats.totalProducts}</p>
+                    </div>
+                    <Package className="w-8 h-8 text-blue-600" />
+                  </div>
+                </CardContent>
+              </Card>
 
-                {currentUser.userRole === "seller" && (
-                  <Card className="mt-6">
-                    <CardHeader>
-                      <CardTitle className="text-xl">Your Company Status</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      {isFetchingCompany ? (
-                        <div className="flex justify-center">
-                          <LoadingSpinner />
-                        </div>
-                      ) : companyData ? (
-                        <div className="space-y-2">
-                          <p>
-                            <strong>Company Name:</strong> {companyData.companyName}
-                          </p>
-                          <p>
-                            <strong>Approval Status:</strong>{" "}
-                            <span
-                              className={`font-semibold ${
-                                companyData.approvalStatus === "approved"
-                                  ? "text-green-600"
-                                  : companyData.approvalStatus === "rejected"
-                                  ? "text-red-600"
-                                  : "text-yellow-600"
-                              }`}
-                            >
-                              {companyData.approvalStatus}
-                            </span>
-                          </p>
-                          {companyData.approvalStatus === "pending" && (
-                            <p className="text-sm text-blue-700">
-                              Your company details are awaiting admin approval.
-                            </p>
-                          )}
-                          {companyData.approvalStatus === "rejected" && (
-                            <p className="text-sm text-red-700">
-                              Your company details were rejected. Please review and re-submit.
-                            </p>
-                          )}
-                          {companyData.description && (
-                            <p>
-                              <strong>Description:</strong> {companyData.description.substring(0, 100)}
-                              {companyData.description.length > 100 ? "..." : ""}
-                            </p>
-                          )}
-                          {companyData.website && (
-                            <p>
-                              <strong>Website:</strong>{" "}
-                              <a 
-                                href={companyData.website} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="text-blue-600 hover:underline"
-                              >
-                                {companyData.website}
-                              </a>
-                            </p>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="text-center py-4">
-                          <p className="text-gray-600 mb-3">
-                            No company details added yet. Please add your company information.
-                          </p>
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Approved</p>
+                      <p className="text-3xl font-bold text-green-600">{stats.approvedProducts}</p>
+                    </div>
+                    <CheckCircle className="w-8 h-8 text-green-600" />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Pending</p>
+                      <p className="text-3xl font-bold text-yellow-600">{stats.pendingProducts}</p>
+                    </div>
+                    <Clock className="w-8 h-8 text-yellow-600" />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Rejected</p>
+                      <p className="text-3xl font-bold text-red-600">{stats.rejectedProducts}</p>
+                    </div>
+                    <XCircle className="w-8 h-8 text-red-600" />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Quick Actions */}
+            <div className="lg:col-span-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <TrendingUp className="w-5 h-5 mr-2" />
+                    Quick Actions
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {isEmailVerified && isProfileApproved ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <Button 
+                        onClick={() => router.push("/dashboard/profile")}
+                        variant="outline"
+                        className="h-20 flex flex-col items-center justify-center space-y-2"
+                      >
+                        <User className="w-6 h-6" />
+                        <span>Edit Profile</span>
+                      </Button>
+
+                      {currentUser.userRole === "seller" && (
+                        <>
                           <Button 
                             onClick={() => router.push("/dashboard/company")}
                             variant="outline"
+                            className="h-20 flex flex-col items-center justify-center space-y-2"
                           >
-                            Add Company Details
+                            <Building2 className="w-6 h-6" />
+                            <span>{companyData ? "Edit Company" : "Add Company"}</span>
                           </Button>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                )}
-              </div>
-            )}
 
-            {/* Other Actions - Always visible */}
-            <div className="mt-6 pt-6 border-t">
-              <h3 className="text-lg font-semibold mb-3">Other Actions</h3>
-              <div className="flex flex-col sm:flex-row gap-2">
-                {/* <Button 
-                  onClick={() => refreshAuth()} 
-                  variant="outline"
-                  className="flex-1"
-                >
-                  Refresh Account Status
-                </Button> */}
-                <Button 
-                  onClick={handleLogout} 
-                  variant="destructive" 
-                  className="flex-1"
-                >
-                  Logout
-                </Button>
-              </div>
-            </div>  
-          </CardContent>
-        </Card>
+                          <Button 
+                            onClick={() => router.push("/dashboard/products")}
+                            variant="outline"
+                            className="h-20 flex flex-col items-center justify-center space-y-2"
+                          >
+                            <Package className="w-6 h-6" />
+                            <span>Manage Products</span>
+                          </Button>
+
+                          <Button 
+                            onClick={() => router.push("/dashboard/products/add")}
+                            disabled={!canListProducts}
+                            className="h-20 flex flex-col items-center justify-center space-y-2"
+                          >
+                            <Plus className="w-6 h-6" />
+                            <span>Add Product</span>
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <AlertTriangle className="w-12 h-12 text-yellow-500 mx-auto mb-4" />
+                      <p className="text-gray-600">Complete your profile setup to access all features.</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Company Status / Profile Info */}
+            <div>
+              {currentUser.userRole === "seller" ? (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center">
+                      <Building2 className="w-5 h-5 mr-2" />
+                      Company Status
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {isFetchingData ? (
+                      <div className="flex justify-center py-8">
+                        <LoadingSpinner />
+                      </div>
+                    ) : companyData ? (
+                      <div className="space-y-4">
+                        <div>
+                          <p className="text-sm text-gray-600">Company Name</p>
+                          <p className="font-medium">{companyData.companyName}</p>
+                        </div>
+                        
+                        <div>
+                          <p className="text-sm text-gray-600">Status</p>
+                          <Badge 
+                            variant={
+                              companyData.approvalStatus === "approved" ? "default" :
+                              companyData.approvalStatus === "rejected" ? "destructive" : "secondary"
+                            }
+                            className="mt-1"
+                          >
+                            {companyData.approvalStatus}
+                          </Badge>
+                        </div>
+
+                        {companyData.approvalStatus === "pending" && (
+                          <p className="text-sm text-blue-600">
+                            Awaiting admin approval
+                          </p>
+                        )}
+
+                        {companyData.approvalStatus === "rejected" && (
+                          <p className="text-sm text-red-600">
+                            Please review and re-submit
+                          </p>
+                        )}
+
+                        {companyData.website && (
+                          <div>
+                            <p className="text-sm text-gray-600">Website</p>
+                            <a
+                              href={companyData.website}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:underline text-sm"
+                            >
+                              {companyData.website}
+                            </a>
+                          </div>
+                        )}
+
+                        <Button
+                          onClick={() => router.push("/dashboard/company")}
+                          variant="outline"
+                          size="sm"
+                          className="w-full mt-4"
+                        >
+                          <Edit className="w-4 h-4 mr-2" />
+                          Edit Details
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="text-center py-6">
+                        <Building2 className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                        <p className="text-gray-600 mb-4 text-sm">
+                          No company details added yet
+                        </p>
+                        <Button
+                          onClick={() => router.push("/dashboard/company")}
+                          size="sm"
+                          className="w-full"
+                        >
+                          <Plus className="w-4 h-4 mr-2" />
+                          Add Company Details
+                        </Button>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center">
+                      <User className="w-5 h-5 mr-2" />
+                      Profile Info
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      <div>
+                        <p className="text-sm text-gray-600">Email</p>
+                        <p className="font-medium">{currentUser.email}</p>
+                      </div>
+                      
+                      <div>
+                        <p className="text-sm text-gray-600">Role</p>
+                        <Badge variant="outline" className="mt-1">
+                          {currentUser.userRole}
+                        </Badge>
+                      </div>
+
+                      <div>
+                        <p className="text-sm text-gray-600">Status</p>
+                        <Badge 
+                          variant={isProfileApproved ? "default" : "secondary"}
+                          className="mt-1"
+                        >
+                          {isProfileApproved ? "Approved" : "Pending"}
+                        </Badge>
+                      </div>
+
+                      <Button
+                        onClick={() => router.push("/dashboard/profile")}
+                        variant="outline"
+                        size="sm"
+                        className="w-full mt-4"
+                      >
+                        <Edit className="w-4 h-4 mr-2" />
+                        Edit Profile
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          </div>
+
+          {/* Recent Products for Sellers */}
+          {currentUser.userRole === "seller" && productsData.length > 0 && (
+            <Card className="mt-8">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center">
+                    <Package className="w-5 h-5 mr-2" />
+                    Recent Products
+                  </CardTitle>
+                  <Button
+                    onClick={() => router.push("/dashboard/products")}
+                    variant="outline"
+                    size="sm"
+                  >
+                    <Eye className="w-4 h-4 mr-2" />
+                    View All
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {productsData.slice(0, 3).map((product) => (
+                    <div key={product.id} className="flex items-center justify-between p-4 border rounded-lg">
+                      <div className="flex items-center space-x-4">
+                        {product.images && product.images.length > 0 ? (
+                          <img
+                            src={pb.files.getUrl(product, product.images[0]) || "/placeholder.svg"}
+                            alt={product.title}
+                            className="w-12 h-12 object-cover rounded"
+                          />
+                        ) : (
+                          <div className="w-12 h-12 bg-gray-200 rounded flex items-center justify-center">
+                            <Package className="w-6 h-6 text-gray-400" />
+                          </div>
+                        )}
+                        <div>
+                          <p className="font-medium">{product.title}</p>
+                          <p className="text-sm text-gray-600">₹{product.price} / {product.measurement}</p>
+                        </div>
+                      </div>
+                      <Badge 
+                        variant={
+                          product.approvalStatus === "approved" ? "default" :
+                          product.approvalStatus === "rejected" ? "destructive" : "secondary"
+                        }
+                      >
+                        {product.approvalStatus}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
       </div>
     </AuthGuard>
   );
