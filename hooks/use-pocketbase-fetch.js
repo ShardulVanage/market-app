@@ -1,4 +1,6 @@
-import { useEffect, useCallback } from 'react';
+"use client"
+
+import { useEffect, useCallback, useState } from "react"
 
 /**
  * Custom hook for PocketBase data fetching with auto-cancellation handling
@@ -7,20 +9,20 @@ import { useEffect, useCallback } from 'react';
  * @param {number} delay - Debounce delay in milliseconds (default: 100)
  */
 export function usePocketBaseFetch(fetchFn, deps, delay = 100) {
-  const memoizedFetchFn = useCallback(fetchFn, deps);
+  const memoizedFetchFn = useCallback(fetchFn, deps)
 
   useEffect(() => {
-    const controller = new AbortController();
-    
+    const controller = new AbortController()
+
     const timeout = setTimeout(() => {
-      memoizedFetchFn(controller.signal);
-    }, delay);
+      memoizedFetchFn(controller.signal)
+    }, delay)
 
     return () => {
-      controller.abort();
-      clearTimeout(timeout);
-    };
-  }, [memoizedFetchFn, delay]);
+      controller.abort()
+      clearTimeout(timeout)
+    }
+  }, [memoizedFetchFn, delay])
 }
 
 /**
@@ -31,18 +33,21 @@ export function usePocketBaseFetch(fetchFn, deps, delay = 100) {
  * @returns {boolean} isLoading - Loading state
  */
 export function usePocketBaseFetchWithLoading(fetchFn, deps, delay = 100) {
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true)
 
-  const wrappedFetchFn = useCallback(async (signal) => {
-    setIsLoading(true);
-    try {
-      await fetchFn(signal);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [fetchFn]);
+  const wrappedFetchFn = useCallback(
+    async (signal) => {
+      setIsLoading(true)
+      try {
+        await fetchFn(signal)
+      } finally {
+        setIsLoading(false)
+      }
+    },
+    [fetchFn],
+  )
 
-  usePocketBaseFetch(wrappedFetchFn, deps, delay);
+  usePocketBaseFetch(wrappedFetchFn, deps, delay)
 
-  return isLoading;
+  return isLoading
 }
