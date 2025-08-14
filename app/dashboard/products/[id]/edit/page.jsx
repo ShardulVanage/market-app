@@ -1,36 +1,37 @@
-"use client";
+"use client"
 
-import { useState, useEffect, useCallback } from "react";
-import { useRouter, useParams } from "next/navigation";
-import { useAuth } from "@/context/AuthContext";
-import AuthGuard from "@/components/auth-guard";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import LoadingSpinner from "@/components/ui/loading-spinner";
-import { getClientPb } from "@/lib/pocketbase";
-import { measurementUnits, productCategories } from "@/lib/constants";
-import { Upload, X, Plus, ArrowLeft } from 'lucide-react';
+import { useState, useEffect, useCallback } from "react"
+import { useRouter, useParams } from "next/navigation"
+import { useAuth } from "@/context/AuthContext"
+import AuthGuard from "@/components/auth-guard"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import LoadingSpinner from "@/components/ui/loading-spinner"
+import { getClientPb } from "@/lib/pocketbase"
+import { measurementUnits, productCategories } from "@/lib/constants"
+import { Upload, X, Plus, ArrowLeft } from "lucide-react"
 
 export default function EditProductPage() {
-  const { currentUser, isLoading } = useAuth();
-  const router = useRouter();
-  const params = useParams();
-  const pb = getClientPb();
+  const { currentUser, isLoading } = useAuth()
+  const router = useRouter()
+  const params = useParams()
+  const pb = getClientPb()
 
-  const [product, setProduct] = useState(null);
-  const [isFetchingProduct, setIsFetchingProduct] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [product, setProduct] = useState(null)
+  const [isFetchingProduct, setIsFetchingProduct] = useState(true)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isCompressing, setIsCompressing] = useState(false)
 
   // Category selection states
-  const [selectedCategory, setSelectedCategory] = useState("");
-  const [selectedSubcategory, setSelectedSubcategory] = useState("");
-  const [selectedSubSubcategory, setSelectedSubSubcategory] = useState("");
-  const [availableSubcategories, setAvailableSubcategories] = useState([]);
-  const [availableSubSubcategories, setAvailableSubSubcategories] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState("")
+  const [selectedSubcategory, setSelectedSubcategory] = useState("")
+  const [selectedSubSubcategory, setSelectedSubSubcategory] = useState("")
+  const [availableSubcategories, setAvailableSubcategories] = useState([])
+  const [availableSubSubcategories, setAvailableSubSubcategories] = useState([])
 
   // Form data state
   const [formData, setFormData] = useState({
@@ -49,7 +50,7 @@ export default function EditProductPage() {
       relatedSectors: [],
       certification: "",
       majorBuyers: "",
-      availability: ""
+      availability: "",
     },
     specifications: {
       brand: "",
@@ -58,272 +59,359 @@ export default function EditProductPage() {
       finishing: "",
       packageType: "",
       usageApplication: "",
-      warranty: ""
-    }
-  });
+      warranty: "",
+    },
+  })
 
   // Temporary states for adding array items
-  const [newExportCountry, setNewExportCountry] = useState("");
-  const [newRelatedSector, setNewRelatedSector] = useState("");
+  const [newExportCountry, setNewExportCountry] = useState("")
+  const [newRelatedSector, setNewRelatedSector] = useState("")
 
-  // Fetch product details
-  const fetchProduct = useCallback(async (signal) => {
-    if (!currentUser?.id || !pb.authStore.isValid || !params.id) {
-      setIsFetchingProduct(false);
-      return;
-    }
+  const compressImage = (file, maxSizeMB = 4, quality = 0.8) => {
+    return new Promise((resolve) => {
+      const canvas = document.createElement("canvas")
+      const ctx = canvas.getContext("2d")
+      const img = new Image()
 
-    setIsFetchingProduct(true);
-    
-    try {
-      const productRecord = await pb.collection("products").getOne(params.id, {
-        expand: "company,seller",
-        signal
-      });
+      img.onload = () => {
+        // Calculate new dimensions
+        const maxWidth = 1920
+        const maxHeight = 1920
+        let { width, height } = img
 
-      // Check if current user owns this product
-      if (productRecord.seller !== currentUser.id) {
-        alert("You don't have permission to edit this product.");
-        router.push("/dashboard/products");
-        return;
+        if (width > height) {
+          if (width > maxWidth) {
+            height = (height * maxWidth) / width
+            width = maxWidth
+          }
+        } else {
+          if (height > maxHeight) {
+            width = (width * maxHeight) / height
+            height = maxHeight
+          }
+        }
+
+        canvas.width = width
+        canvas.height = height
+
+        // Draw and compress
+        ctx.drawImage(img, 0, 0, width, height)
+
+        canvas.toBlob(
+          (blob) => {
+            const compressedFile = new File([blob], file.name, {
+              type: "image/jpeg",
+              lastModified: Date.now(),
+            })
+            resolve(compressedFile)
+          },
+          "image/jpeg",
+          quality,
+        )
       }
 
-      setProduct(productRecord);
+      img.src = URL.createObjectURL(file)
+    })
+  }
 
-      // Parse category string
-      const categoryParts = productRecord.category ? productRecord.category.split(",") : [];
-      if (categoryParts.length >= 1) setSelectedCategory(categoryParts[0]);
-      if (categoryParts.length >= 2) setSelectedSubcategory(categoryParts[1]);
-      if (categoryParts.length >= 3) setSelectedSubSubcategory(categoryParts[2]);
+  // Fetch product details
+  const fetchProduct = useCallback(
+    async (signal) => {
+      if (!currentUser?.id || !pb.authStore.isValid || !params.id) {
+        setIsFetchingProduct(false)
+        return
+      }
 
-      // Set form data
-      setFormData({
-        title: productRecord.title || "",
-        description: productRecord.description || "",
-        hsc: productRecord.hsc || "",
-        keywords: productRecord.keywords || "",
-        price: productRecord.price?.toString() || "",
-        measurement: productRecord.measurement || "",
-        contact: productRecord.contact || "",
-        images: productRecord.images || [],
-        newImages: [],
-        productDetails: productRecord.productDetails || {
-          description: "",
-          exportCountries: [],
-          relatedSectors: [],
-          certification: "",
-          majorBuyers: "",
-          availability: ""
-        },
-        specifications: productRecord.specifications || {
-          brand: "",
-          modalNumber: "",
-          material: "",
-          finishing: "",
-          packageType: "",
-          usageApplication: "",
-          warranty: ""
+      setIsFetchingProduct(true)
+
+      try {
+        const productRecord = await pb.collection("products").getOne(params.id, {
+          expand: "company,seller",
+          signal,
+        })
+
+        // Check if current user owns this product
+        if (productRecord.seller !== currentUser.id) {
+          alert("You don't have permission to edit this product.")
+          router.push("/dashboard/products")
+          return
         }
-      });
 
-      // Set up category dropdowns
-      if (categoryParts.length >= 1) {
-        const category = productCategories.find(cat => cat.name === categoryParts[0]);
-        if (category) {
-          setAvailableSubcategories(category.subcategories);
-          
-          if (categoryParts.length >= 2) {
-            const subcategory = category.subcategories.find(sub => sub.name === categoryParts[1]);
-            if (subcategory) {
-              setAvailableSubSubcategories(subcategory.sub_subcategories);
+        setProduct(productRecord)
+
+        setSelectedCategory(productRecord.category || "")
+        setSelectedSubcategory(productRecord.sub_category || "")
+        setSelectedSubSubcategory(productRecord.sub_sub_category || "")
+
+        // Set form data
+        setFormData({
+          title: productRecord.title || "",
+          description: productRecord.description || "",
+          hsc: productRecord.hsc || "",
+          keywords: productRecord.keywords || "",
+          price: productRecord.price?.toString() || "",
+          measurement: productRecord.measurement || "",
+          contact: productRecord.contact || "",
+          images: productRecord.images || [],
+          newImages: [],
+          productDetails: productRecord.productDetails || {
+            description: "",
+            exportCountries: [],
+            relatedSectors: [],
+            certification: "",
+            majorBuyers: "",
+            availability: "",
+          },
+          specifications: productRecord.specifications || {
+            brand: "",
+            modalNumber: "",
+            material: "",
+            finishing: "",
+            packageType: "",
+            usageApplication: "",
+            warranty: "",
+          },
+        })
+
+        if (productRecord.category) {
+          const category = productCategories.find((cat) => cat.name === productRecord.category)
+          if (category) {
+            setAvailableSubcategories(category.subcategories)
+
+            if (productRecord.sub_category) {
+              const subcategory = category.subcategories.find((sub) => sub.name === productRecord.sub_category)
+              if (subcategory) {
+                setAvailableSubSubcategories(subcategory.sub_subcategories)
+              }
             }
           }
         }
-      }
+      } catch (err) {
+        // Handle auto-cancellation gracefully
+        if (err.name === "AbortError" || err.message?.includes("autocancelled")) {
+          console.log("Request was cancelled, this is normal when navigating quickly")
+          return
+        }
 
-    } catch (err) {
-      // Handle auto-cancellation gracefully
-      if (err.name === 'AbortError' || err.message?.includes('autocancelled')) {
-        console.log("Request was cancelled, this is normal when navigating quickly");
-        return;
+        console.error("Failed to fetch product:", err)
+        alert("Failed to load product details.")
+        router.push("/dashboard/products")
+      } finally {
+        setIsFetchingProduct(false)
       }
-      
-      console.error("Failed to fetch product:", err);
-      alert("Failed to load product details.");
-      router.push("/dashboard/products");
-    } finally {
-      setIsFetchingProduct(false);
-    }
-  }, [currentUser, pb, params.id, router]);
+    },
+    [currentUser, pb, params.id, router],
+  )
 
   useEffect(() => {
-    if (!currentUser?.id || !params.id) return;
+    if (!currentUser?.id || !params.id) return
 
-    const controller = new AbortController();
-    
+    const controller = new AbortController()
+
     const timeout = setTimeout(() => {
-      fetchProduct(controller.signal);
-    }, 100);
+      fetchProduct(controller.signal)
+    }, 100)
 
     return () => {
-      controller.abort();
-      clearTimeout(timeout);
-    };
-  }, [currentUser?.id, params.id, fetchProduct]);
+      controller.abort()
+      clearTimeout(timeout)
+    }
+  }, [currentUser?.id, params.id, fetchProduct])
 
-  // Handle category selection (same as add product)
+  // Handle category selection
   const handleCategoryChange = (categoryName) => {
-    setSelectedCategory(categoryName);
-    setSelectedSubcategory("");
-    setSelectedSubSubcategory("");
-    
-    const category = productCategories.find(cat => cat.name === categoryName);
-    setAvailableSubcategories(category ? category.subcategories : []);
-    setAvailableSubSubcategories([]);
-  };
+    setSelectedCategory(categoryName)
+    setSelectedSubcategory("")
+    setSelectedSubSubcategory("")
+
+    const category = productCategories.find((cat) => cat.name === categoryName)
+    setAvailableSubcategories(category ? category.subcategories : [])
+    setAvailableSubSubcategories([])
+  }
 
   const handleSubcategoryChange = (subcategoryName) => {
-    setSelectedSubcategory(subcategoryName);
-    setSelectedSubSubcategory("");
-    
-    const category = productCategories.find(cat => cat.name === selectedCategory);
-    const subcategory = category?.subcategories.find(sub => sub.name === subcategoryName);
-    setAvailableSubSubcategories(subcategory ? subcategory.sub_subcategories : []);
-  };
+    setSelectedSubcategory(subcategoryName)
+    setSelectedSubSubcategory("")
+
+    const category = productCategories.find((cat) => cat.name === selectedCategory)
+    const subcategory = category?.subcategories.find((sub) => sub.name === subcategoryName)
+    setAvailableSubSubcategories(subcategory ? subcategory.sub_subcategories : [])
+  }
 
   const handleSubSubcategoryChange = (subSubcategoryName) => {
-    setSelectedSubSubcategory(subSubcategoryName);
-  };
+    setSelectedSubSubcategory(subSubcategoryName)
+  }
 
-  // Get final category string
-  const getFinalCategoryString = () => {
-    if (selectedCategory && selectedSubcategory && selectedSubSubcategory) {
-      return `${selectedCategory},${selectedSubcategory},${selectedSubSubcategory}`;
-    }
-    return "";
-  };
-
-  // Handle form input changes (same as add product)
+  // Handle form input changes
   const handleInputChange = (field, value) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [field]: value
-    }));
-  };
+      [field]: value,
+    }))
+  }
 
   const handleNestedChange = (section, field, value) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       [section]: {
         ...prev[section],
-        [field]: value
-      }
-    }));
-  };
+        [field]: value,
+      },
+    }))
+  }
 
   const addToArray = (section, field, value) => {
     if (value.trim()) {
-      setFormData(prev => ({
+      setFormData((prev) => ({
         ...prev,
         [section]: {
           ...prev[section],
-          [field]: [...prev[section][field], value.trim()]
-        }
-      }));
+          [field]: [...prev[section][field], value.trim()],
+        },
+      }))
     }
-  };
+  }
 
   const removeFromArray = (section, field, index) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       [section]: {
         ...prev[section],
-        [field]: prev[section][field].filter((_, i) => i !== index)
-      }
-    }));
-  };
+        [field]: prev[section][field].filter((_, i) => i !== index),
+      },
+    }))
+  }
 
-  // Handle new image upload
-  const handleNewImageUpload = (e) => {
-    const files = Array.from(e.target.files);
-    setFormData(prev => ({
-      ...prev,
-      newImages: [...prev.newImages, ...files]
-    }));
-  };
+  const handleNewImageUpload = async (e) => {
+    const files = Array.from(e.target.files)
+    const maxSizeBytes = 5 * 1024 * 1024 // 5MB limit
 
-  const removeNewImage = (index) => {
-    setFormData(prev => ({
-      ...prev,
-      newImages: prev.newImages.filter((_, i) => i !== index)
-    }));
-  };
-
-  const removeExistingImage = (imageName) => {
-    setFormData(prev => ({
-      ...prev,
-      images: prev.images.filter(img => img !== imageName)
-    }));
-  };
-
-  // Handle form submission
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
-    const categoryString = getFinalCategoryString();
-    if (!categoryString) {
-      alert("Please select a complete category path.");
-      return;
-    }
-
-    setIsSubmitting(true);
+    setIsCompressing(true)
 
     try {
-      const formDataToSubmit = new FormData();
-      
+      const processedFiles = []
+
+      for (const file of files) {
+        // Validate file type
+        if (!file.type.startsWith("image/")) {
+          alert(`${file.name} is not a valid image file.`)
+          continue
+        }
+
+        // Check file size and compress if needed
+        if (file.size > maxSizeBytes) {
+          console.log(`Compressing ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB)`)
+          const compressedFile = await compressImage(file)
+
+          if (compressedFile.size > maxSizeBytes) {
+            // Try with lower quality
+            const recompressedFile = await compressImage(file, 3, 0.6)
+            processedFiles.push(recompressedFile)
+          } else {
+            processedFiles.push(compressedFile)
+          }
+        } else {
+          processedFiles.push(file)
+        }
+      }
+
+      setFormData((prev) => ({
+        ...prev,
+        newImages: [...prev.newImages, ...processedFiles],
+      }))
+    } catch (error) {
+      console.error("Error processing images:", error)
+      alert("Error processing images. Please try again.")
+    } finally {
+      setIsCompressing(false)
+    }
+  }
+
+  const removeNewImage = (index) => {
+    setFormData((prev) => ({
+      ...prev,
+      newImages: prev.newImages.filter((_, i) => i !== index),
+    }))
+  }
+
+  const removeExistingImage = (imageName) => {
+    setFormData((prev) => ({
+      ...prev,
+      images: prev.images.filter((img) => img !== imageName),
+    }))
+  }
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+
+    if (!selectedCategory) {
+      alert("Please select at least a main category.")
+      return
+    }
+
+    setIsSubmitting(true)
+
+    try {
+      const formDataToSubmit = new FormData()
+
       // Add basic fields
-      formDataToSubmit.append("title", formData.title);
-      formDataToSubmit.append("description", formData.description);
-      formDataToSubmit.append("hsc", formData.hsc);
-      formDataToSubmit.append("keywords", formData.keywords);
-      formDataToSubmit.append("category", categoryString);
-      formDataToSubmit.append("price", parseFloat(formData.price) || 0);
-      formDataToSubmit.append("measurement", formData.measurement);
-      formDataToSubmit.append("contact", formData.contact);
-      formDataToSubmit.append("approvalStatus", "pending"); // Reset to pending after edit
+      formDataToSubmit.append("title", formData.title)
+      formDataToSubmit.append("description", formData.description)
+      formDataToSubmit.append("hsc", formData.hsc)
+      formDataToSubmit.append("keywords", formData.keywords)
+
+      formDataToSubmit.append("category", selectedCategory)
+      if (selectedSubcategory) {
+        formDataToSubmit.append("sub_category", selectedSubcategory)
+      }
+      if (selectedSubSubcategory) {
+        formDataToSubmit.append("sub_sub_category", selectedSubSubcategory)
+      }
+
+      formDataToSubmit.append("price", Number.parseFloat(formData.price) || 0)
+      formDataToSubmit.append("measurement", formData.measurement)
+      formDataToSubmit.append("contact", formData.contact)
+      formDataToSubmit.append("approvalStatus", "pending") // Reset to pending after edit
 
       // Handle existing images (keep the ones not removed)
       formData.images.forEach((imageName) => {
-        formDataToSubmit.append("images", imageName);
-      });
+        formDataToSubmit.append("images", imageName)
+      })
 
       // Add new images
       formData.newImages.forEach((image) => {
-        formDataToSubmit.append("images", image);
-      });
+        formDataToSubmit.append("images", image)
+      })
 
       // Add JSON fields
-      formDataToSubmit.append("productDetails", JSON.stringify(formData.productDetails));
-      formDataToSubmit.append("specifications", JSON.stringify(formData.specifications));
+      formDataToSubmit.append("productDetails", JSON.stringify(formData.productDetails))
+      formDataToSubmit.append("specifications", JSON.stringify(formData.specifications))
 
-      await pb.collection("products").update(params.id, formDataToSubmit);
-      
-      alert("Product updated successfully! It will be reviewed by admin again.");
-      router.push("/dashboard/products");
+      await pb.collection("products").update(params.id, formDataToSubmit)
+
+      alert("Product updated successfully! It will be reviewed by admin again.")
+      router.push("/dashboard/products")
     } catch (error) {
-      console.error("Error updating product:", error);
-      alert("Failed to update product. Please try again.");
+      console.error("Error updating product:", error)
+
+      if (error.message?.includes("file size") || error.message?.includes("5242880")) {
+        alert(
+          "One or more images are too large. Please try with smaller images or let the system compress them automatically.",
+        )
+      } else {
+        alert("Failed to update product. Please try again.")
+      }
     } finally {
-      setIsSubmitting(false);
+      setIsSubmitting(false)
     }
-  };
+  }
 
   if (isLoading || isFetchingProduct) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <LoadingSpinner size={48} />
       </div>
-    );
+    )
   }
 
   if (!currentUser || currentUser.userRole !== "seller" || !product) {
@@ -335,7 +423,7 @@ export default function EditProductPage() {
           </CardContent>
         </Card>
       </div>
-    );
+    )
   }
 
   return (
@@ -344,11 +432,7 @@ export default function EditProductPage() {
         <Card className="w-full max-w-4xl mx-auto">
           <CardHeader>
             <div className="flex items-center space-x-4 mb-4">
-              <Button 
-                onClick={() => router.push("/dashboard/products")}
-                variant="outline"
-                size="sm"
-              >
+              <Button onClick={() => router.push("/dashboard/products")} variant="outline" size="sm">
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Back to Products
               </Button>
@@ -367,7 +451,7 @@ export default function EditProductPage() {
               {/* Basic Information */}
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold">Basic Information</h3>
-                
+
                 <div>
                   <Label htmlFor="title">Product Title *</Label>
                   <Input
@@ -392,11 +476,7 @@ export default function EditProductPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="hsc">HSC Code</Label>
-                    <Input
-                      id="hsc"
-                      value={formData.hsc}
-                      onChange={(e) => handleInputChange("hsc", e.target.value)}
-                    />
+                    <Input id="hsc" value={formData.hsc} onChange={(e) => handleInputChange("hsc", e.target.value)} />
                   </div>
                   <div>
                     <Label htmlFor="keywords">Keywords</Label>
@@ -413,7 +493,7 @@ export default function EditProductPage() {
               {/* Category Selection */}
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold">Category Selection *</h3>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <Label>Category</Label>
@@ -433,8 +513,8 @@ export default function EditProductPage() {
 
                   <div>
                     <Label>Subcategory</Label>
-                    <Select 
-                      value={selectedSubcategory} 
+                    <Select
+                      value={selectedSubcategory}
                       onValueChange={handleSubcategoryChange}
                       disabled={!selectedCategory}
                     >
@@ -453,8 +533,8 @@ export default function EditProductPage() {
 
                   <div>
                     <Label>Sub-subcategory</Label>
-                    <Select 
-                      value={selectedSubSubcategory} 
+                    <Select
+                      value={selectedSubSubcategory}
                       onValueChange={handleSubSubcategoryChange}
                       disabled={!selectedSubcategory}
                     >
@@ -472,10 +552,14 @@ export default function EditProductPage() {
                   </div>
                 </div>
 
-                {getFinalCategoryString() && (
+                {selectedCategory && (
                   <div className="p-3 bg-gray-100 rounded">
                     <p className="text-sm text-gray-600">Selected Category Path:</p>
-                    <p className="font-medium">{getFinalCategoryString()}</p>
+                    <p className="font-medium">
+                      {selectedCategory}
+                      {selectedSubcategory && ` > ${selectedSubcategory}`}
+                      {selectedSubSubcategory && ` > ${selectedSubSubcategory}`}
+                    </p>
                   </div>
                 )}
               </div>
@@ -483,7 +567,7 @@ export default function EditProductPage() {
               {/* Pricing & Contact */}
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold">Pricing & Contact</h3>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <Label htmlFor="price">Price *</Label>
@@ -498,7 +582,10 @@ export default function EditProductPage() {
                   </div>
                   <div>
                     <Label htmlFor="measurement">Measurement Unit *</Label>
-                    <Select value={formData.measurement} onValueChange={(value) => handleInputChange("measurement", value)}>
+                    <Select
+                      value={formData.measurement}
+                      onValueChange={(value) => handleInputChange("measurement", value)}
+                    >
                       <SelectTrigger>
                         <SelectValue placeholder="Select unit" />
                       </SelectTrigger>
@@ -526,7 +613,16 @@ export default function EditProductPage() {
               {/* Product Images */}
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold">Product Images</h3>
-                
+
+                <div className="text-sm text-gray-600 bg-blue-50 p-3 rounded">
+                  <p>
+                    <strong>Image Guidelines:</strong>
+                  </p>
+                  <p>• Maximum file size: 5MB per image</p>
+                  <p>• Large images will be automatically compressed</p>
+                  <p>• Supported formats: JPG, PNG, WebP</p>
+                </div>
+
                 {/* Existing Images */}
                 {formData.images.length > 0 && (
                   <div>
@@ -565,15 +661,26 @@ export default function EditProductPage() {
                       accept="image/*"
                       onChange={handleNewImageUpload}
                       className="hidden"
+                      disabled={isCompressing}
                     />
                     <Button
                       type="button"
                       variant="outline"
                       onClick={() => document.getElementById("newImages").click()}
                       className="w-full"
+                      disabled={isCompressing}
                     >
-                      <Upload className="w-4 h-4 mr-2" />
-                      Upload New Images
+                      {isCompressing ? (
+                        <>
+                          <LoadingSpinner size={16} className="mr-2" />
+                          Processing Images...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="w-4 h-4 mr-2" />
+                          Upload New Images
+                        </>
+                      )}
                     </Button>
                   </div>
                 </div>
@@ -589,6 +696,9 @@ export default function EditProductPage() {
                             alt={`New ${index + 1}`}
                             className="w-full h-24 object-cover rounded border"
                           />
+                          <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white text-xs p-1 rounded-b">
+                            {(image.size / 1024 / 1024).toFixed(2)}MB
+                          </div>
                           <Button
                             type="button"
                             variant="destructive"
@@ -605,10 +715,10 @@ export default function EditProductPage() {
                 )}
               </div>
 
-              {/* Product Details - Same as add form */}
+              {/* Product Details */}
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold">Product Details</h3>
-                
+
                 <div>
                   <Label htmlFor="productDescription">Detailed Description</Label>
                   <Textarea
@@ -659,8 +769,8 @@ export default function EditProductPage() {
                     <Button
                       type="button"
                       onClick={() => {
-                        addToArray("productDetails", "exportCountries", newExportCountry);
-                        setNewExportCountry("");
+                        addToArray("productDetails", "exportCountries", newExportCountry)
+                        setNewExportCountry("")
                       }}
                     >
                       <Plus className="w-4 h-4" />
@@ -698,8 +808,8 @@ export default function EditProductPage() {
                     <Button
                       type="button"
                       onClick={() => {
-                        addToArray("productDetails", "relatedSectors", newRelatedSector);
-                        setNewRelatedSector("");
+                        addToArray("productDetails", "relatedSectors", newRelatedSector)
+                        setNewRelatedSector("")
                       }}
                     >
                       <Plus className="w-4 h-4" />
@@ -729,7 +839,7 @@ export default function EditProductPage() {
               {/* Specifications */}
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold">Specifications</h3>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="brand">Brand</Label>
@@ -802,11 +912,7 @@ export default function EditProductPage() {
                 >
                   Cancel
                 </Button>
-                <Button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="flex-1"
-                >
+                <Button type="submit" disabled={isSubmitting || isCompressing} className="flex-1">
                   {isSubmitting ? (
                     <>
                       <LoadingSpinner size={16} className="mr-2" />
@@ -822,5 +928,5 @@ export default function EditProductPage() {
         </Card>
       </div>
     </AuthGuard>
-  );
+  )
 }

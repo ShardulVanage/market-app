@@ -1,35 +1,35 @@
-"use client";
+"use client"
 
-import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
-import { useAuth } from "@/context/AuthContext";
-import AuthGuard from "@/components/auth-guard";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import LoadingSpinner from "@/components/ui/loading-spinner";
-import { getClientPb } from "@/lib/pocketbase";
-import { measurementUnits, productCategories } from "@/lib/constants";
-import { Upload, X, Plus, Minus, ArrowLeft } from 'lucide-react';
+import { useState, useEffect, useCallback } from "react"
+import { useRouter } from "next/navigation"
+import { useAuth } from "@/context/AuthContext"
+import AuthGuard from "@/components/auth-guard"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import LoadingSpinner from "@/components/ui/loading-spinner"
+import { getClientPb } from "@/lib/pocketbase"
+import { measurementUnits, productCategories } from "@/lib/constants"
+import { Upload, X, Plus, ArrowLeft } from "lucide-react"
 
 export default function AddProductPage() {
-  const { currentUser, isLoading } = useAuth();
-  const router = useRouter();
-  const pb = getClientPb();
+  const { currentUser, isLoading } = useAuth()
+  const router = useRouter()
+  const pb = getClientPb()
 
-  const [companyData, setCompanyData] = useState(null);
-  const [isFetchingCompany, setIsFetchingCompany] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [companyData, setCompanyData] = useState(null)
+  const [isFetchingCompany, setIsFetchingCompany] = useState(true)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   // Category selection states
-  const [selectedCategory, setSelectedCategory] = useState("");
-  const [selectedSubcategory, setSelectedSubcategory] = useState("");
-  const [selectedSubSubcategory, setSelectedSubSubcategory] = useState("");
-  const [availableSubcategories, setAvailableSubcategories] = useState([]);
-  const [availableSubSubcategories, setAvailableSubSubcategories] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState("")
+  const [selectedSubcategory, setSelectedSubcategory] = useState("")
+  const [selectedSubSubcategory, setSelectedSubSubcategory] = useState("")
+  const [availableSubcategories, setAvailableSubcategories] = useState([])
+  const [availableSubSubcategories, setAvailableSubSubcategories] = useState([])
 
   // Form data state
   const [formData, setFormData] = useState({
@@ -47,7 +47,7 @@ export default function AddProductPage() {
       relatedSectors: [],
       certification: "",
       majorBuyers: "",
-      availability: ""
+      availability: "",
     },
     specifications: {
       brand: "",
@@ -56,222 +56,334 @@ export default function AddProductPage() {
       finishing: "",
       packageType: "",
       usageApplication: "",
-      warranty: ""
-    }
-  });
+      warranty: "",
+    },
+  })
 
   // Temporary states for adding array items
-  const [newExportCountry, setNewExportCountry] = useState("");
-  const [newRelatedSector, setNewRelatedSector] = useState("");
+  const [newExportCountry, setNewExportCountry] = useState("")
+  const [newRelatedSector, setNewRelatedSector] = useState("")
 
   // Fetch company details
-  const fetchCompanyDetails = useCallback(async (signal) => {
-    if (!currentUser?.id || !pb.authStore.isValid) {
-      setCompanyData(null);
-      setIsFetchingCompany(false);
-      return;
-    }
-
-    if (currentUser.userRole !== "seller") {
-      setCompanyData(null);
-      setIsFetchingCompany(false);
-      return;
-    }
-
-    setIsFetchingCompany(true);
-    
-    try {
-      const record = await pb.collection("companies").getFirstListItem(
-        `user="${currentUser.id}"`,
-        { signal }
-      );
-      setCompanyData(record);
-    } catch (err) {
-      // Handle auto-cancellation gracefully
-      if (err.name === 'AbortError' || err.message?.includes('autocancelled')) {
-        console.log("Request was cancelled, this is normal when navigating quickly");
-        return;
+  const fetchCompanyDetails = useCallback(
+    async (signal) => {
+      if (!currentUser?.id || !pb.authStore.isValid) {
+        setCompanyData(null)
+        setIsFetchingCompany(false)
+        return
       }
-      
-      if (err.status === 404) {
-        setCompanyData(null);
-      } else {
-        console.error("Failed to fetch company details:", err);
+
+      if (currentUser.userRole !== "seller") {
+        setCompanyData(null)
+        setIsFetchingCompany(false)
+        return
       }
-    } finally {
-      setIsFetchingCompany(false);
-    }
-  }, [currentUser, pb]);
+
+      setIsFetchingCompany(true)
+
+      try {
+        const record = await pb.collection("companies").getFirstListItem(`user="${currentUser.id}"`, { signal })
+        setCompanyData(record)
+      } catch (err) {
+        // Handle auto-cancellation gracefully
+        if (err.name === "AbortError" || err.message?.includes("autocancelled")) {
+          console.log("Request was cancelled, this is normal when navigating quickly")
+          return
+        }
+
+        if (err.status === 404) {
+          setCompanyData(null)
+        } else {
+          console.error("Failed to fetch company details:", err)
+        }
+      } finally {
+        setIsFetchingCompany(false)
+      }
+    },
+    [currentUser, pb],
+  )
 
   useEffect(() => {
     if (!currentUser?.id) {
-      setIsFetchingCompany(false);
-      return;
+      setIsFetchingCompany(false)
+      return
     }
 
-    const controller = new AbortController();
-    
+    const controller = new AbortController()
+
     // Small delay to avoid rapid successive requests
     const timeout = setTimeout(() => {
-      fetchCompanyDetails(controller.signal);
-    }, 100);
+      fetchCompanyDetails(controller.signal)
+    }, 100)
 
     return () => {
-      controller.abort();
-      clearTimeout(timeout);
-    };
-  }, [currentUser?.id, fetchCompanyDetails]);
+      controller.abort()
+      clearTimeout(timeout)
+    }
+  }, [currentUser?.id, fetchCompanyDetails])
 
   // Handle category selection
   const handleCategoryChange = (categoryName) => {
-    setSelectedCategory(categoryName);
-    setSelectedSubcategory("");
-    setSelectedSubSubcategory("");
-    
-    const category = productCategories.find(cat => cat.name === categoryName);
-    setAvailableSubcategories(category ? category.subcategories : []);
-    setAvailableSubSubcategories([]);
-  };
+    setSelectedCategory(categoryName)
+    setSelectedSubcategory("")
+    setSelectedSubSubcategory("")
+
+    const category = productCategories.find((cat) => cat.name === categoryName)
+    setAvailableSubcategories(category ? category.subcategories : [])
+    setAvailableSubSubcategories([])
+  }
 
   const handleSubcategoryChange = (subcategoryName) => {
-    setSelectedSubcategory(subcategoryName);
-    setSelectedSubSubcategory("");
-    
-    const category = productCategories.find(cat => cat.name === selectedCategory);
-    const subcategory = category?.subcategories.find(sub => sub.name === subcategoryName);
-    setAvailableSubSubcategories(subcategory ? subcategory.sub_subcategories : []);
-  };
+    setSelectedSubcategory(subcategoryName)
+    setSelectedSubSubcategory("")
+
+    const category = productCategories.find((cat) => cat.name === selectedCategory)
+    const subcategory = category?.subcategories.find((sub) => sub.name === subcategoryName)
+    setAvailableSubSubcategories(subcategory ? subcategory.sub_subcategories : [])
+  }
 
   const handleSubSubcategoryChange = (subSubcategoryName) => {
-    setSelectedSubSubcategory(subSubcategoryName);
-  };
+    setSelectedSubSubcategory(subSubcategoryName)
+  }
 
-  // Get final category string
-  const getFinalCategoryString = () => {
-    if (selectedCategory && selectedSubcategory && selectedSubSubcategory) {
-      return `${selectedCategory},${selectedSubcategory},${selectedSubSubcategory}`;
-    }
-    return "";
-  };
+  const getCategoryDisplayString = () => {
+    const parts = []
+    if (selectedCategory) parts.push(selectedCategory)
+    if (selectedSubcategory) parts.push(selectedSubcategory)
+    if (selectedSubSubcategory) parts.push(selectedSubSubcategory)
+    return parts.join(" > ")
+  }
 
   // Handle form input changes
   const handleInputChange = (field, value) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [field]: value
-    }));
-  };
+      [field]: value,
+    }))
+  }
 
   // Handle nested object changes (productDetails, specifications)
   const handleNestedChange = (section, field, value) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       [section]: {
         ...prev[section],
-        [field]: value
-      }
-    }));
-  };
+        [field]: value,
+      },
+    }))
+  }
 
   // Handle array operations for productDetails
   const addToArray = (section, field, value) => {
     if (value.trim()) {
-      setFormData(prev => ({
+      setFormData((prev) => ({
         ...prev,
         [section]: {
           ...prev[section],
-          [field]: [...prev[section][field], value.trim()]
-        }
-      }));
+          [field]: [...prev[section][field], value.trim()],
+        },
+      }))
     }
-  };
+  }
 
   const removeFromArray = (section, field, index) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       [section]: {
         ...prev[section],
-        [field]: prev[section][field].filter((_, i) => i !== index)
-      }
-    }));
-  };
+        [field]: prev[section][field].filter((_, i) => i !== index),
+      },
+    }))
+  }
 
-  // Handle image upload
-  const handleImageUpload = (e) => {
-    const files = Array.from(e.target.files);
-    setFormData(prev => ({
-      ...prev,
-      images: [...prev.images, ...files]
-    }));
-  };
+  const compressImage = (file, maxSizeKB = 4096) => {
+    return new Promise((resolve) => {
+      const canvas = document.createElement("canvas")
+      const ctx = canvas.getContext("2d")
+      const img = new Image()
+
+      img.onload = () => {
+        // Calculate new dimensions to maintain aspect ratio
+        const maxWidth = 1920
+        const maxHeight = 1080
+        let { width, height } = img
+
+        if (width > height) {
+          if (width > maxWidth) {
+            height = (height * maxWidth) / width
+            width = maxWidth
+          }
+        } else {
+          if (height > maxHeight) {
+            width = (width * maxHeight) / height
+            height = maxHeight
+          }
+        }
+
+        canvas.width = width
+        canvas.height = height
+
+        // Draw and compress
+        ctx.drawImage(img, 0, 0, width, height)
+
+        // Start with high quality and reduce if needed
+        let quality = 0.9
+        const tryCompress = () => {
+          canvas.toBlob(
+            (blob) => {
+              if (blob.size <= maxSizeKB * 1024 || quality <= 0.1) {
+                // Create a new File object with the original name
+                const compressedFile = new File([blob], file.name, {
+                  type: "image/jpeg",
+                  lastModified: Date.now(),
+                })
+                resolve(compressedFile)
+              } else {
+                quality -= 0.1
+                tryCompress()
+              }
+            },
+            "image/jpeg",
+            quality,
+          )
+        }
+
+        tryCompress()
+      }
+
+      img.src = URL.createObjectURL(file)
+    })
+  }
+
+  // Handle image upload with validation and compression
+  const handleImageUpload = async (e) => {
+    const files = Array.from(e.target.files)
+    const maxSizeBytes = 5 * 1024 * 1024 // 5MB limit
+    const maxFiles = 10
+
+    // Check total number of images
+    if (formData.images.length + files.length > maxFiles) {
+      alert(`You can only upload a maximum of ${maxFiles} images.`)
+      return
+    }
+
+    const processedFiles = []
+
+    for (const file of files) {
+      // Validate file type
+      if (!file.type.startsWith("image/")) {
+        alert(`${file.name} is not a valid image file.`)
+        continue
+      }
+
+      try {
+        let processedFile = file
+
+        // If file is too large, compress it
+        if (file.size > maxSizeBytes) {
+          console.log(`Compressing ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB)`)
+          processedFile = await compressImage(file, 4096) // Compress to ~4MB max
+          console.log(`Compressed to ${(processedFile.size / 1024 / 1024).toFixed(2)}MB`)
+        }
+
+        // Final size check
+        if (processedFile.size > maxSizeBytes) {
+          alert(`${file.name} is still too large after compression. Please use a smaller image.`)
+          continue
+        }
+
+        processedFiles.push(processedFile)
+      } catch (error) {
+        console.error(`Error processing ${file.name}:`, error)
+        alert(`Failed to process ${file.name}. Please try a different image.`)
+      }
+    }
+
+    if (processedFiles.length > 0) {
+      setFormData((prev) => ({
+        ...prev,
+        images: [...prev.images, ...processedFiles],
+      }))
+    }
+
+    // Clear the input
+    e.target.value = ""
+  }
 
   const removeImage = (index) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      images: prev.images.filter((_, i) => i !== index)
-    }));
-  };
+      images: prev.images.filter((_, i) => i !== index),
+    }))
+  }
 
   // Handle form submission
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    
+    e.preventDefault()
+
     if (!companyData || companyData.approvalStatus !== "approved") {
-      alert("You need an approved company profile to list products.");
-      return;
+      alert("You need an approved company profile to list products.")
+      return
     }
 
-    const categoryString = getFinalCategoryString();
-    if (!categoryString) {
-      alert("Please select a complete category path.");
-      return;
+    if (!selectedCategory) {
+      alert("Please select at least a main category.")
+      return
     }
 
-    setIsSubmitting(true);
+    setIsSubmitting(true)
 
     try {
-      const formDataToSubmit = new FormData();
-      
+      const formDataToSubmit = new FormData()
+
       // Add basic fields
-      formDataToSubmit.append("title", formData.title);
-      formDataToSubmit.append("description", formData.description);
-      formDataToSubmit.append("hsc", formData.hsc);
-      formDataToSubmit.append("keywords", formData.keywords);
-      formDataToSubmit.append("category", categoryString);
-      formDataToSubmit.append("price", parseFloat(formData.price) || 0);
-      formDataToSubmit.append("measurement", formData.measurement);
-      formDataToSubmit.append("contact", formData.contact);
-      formDataToSubmit.append("company", companyData.id);
-      formDataToSubmit.append("seller", currentUser.id);
-      formDataToSubmit.append("approvalStatus", "pending");
+      formDataToSubmit.append("title", formData.title)
+      formDataToSubmit.append("description", formData.description)
+      formDataToSubmit.append("hsc", formData.hsc)
+      formDataToSubmit.append("keywords", formData.keywords)
+
+      formDataToSubmit.append("category", selectedCategory)
+      if (selectedSubcategory) {
+        formDataToSubmit.append("sub_category", selectedSubcategory)
+      }
+      if (selectedSubSubcategory) {
+        formDataToSubmit.append("sub_sub_category", selectedSubSubcategory)
+      }
+
+      formDataToSubmit.append("price", Number.parseFloat(formData.price) || 0)
+      formDataToSubmit.append("measurement", formData.measurement)
+      formDataToSubmit.append("contact", formData.contact)
+      formDataToSubmit.append("company", companyData.id)
+      formDataToSubmit.append("seller", currentUser.id)
+      formDataToSubmit.append("approvalStatus", "pending")
 
       // Add images
       formData.images.forEach((image, index) => {
-        formDataToSubmit.append("images", image);
-      });
+        formDataToSubmit.append("images", image)
+      })
 
       // Add JSON fields
-      formDataToSubmit.append("productDetails", JSON.stringify(formData.productDetails));
-      formDataToSubmit.append("specifications", JSON.stringify(formData.specifications));
+      formDataToSubmit.append("productDetails", JSON.stringify(formData.productDetails))
+      formDataToSubmit.append("specifications", JSON.stringify(formData.specifications))
 
-      await pb.collection("products").create(formDataToSubmit);
-      
-      alert("Product submitted successfully! It will be reviewed by admin.");
-      router.push("/dashboard/products");
+      await pb.collection("products").create(formDataToSubmit)
+
+      alert("Product submitted successfully! It will be reviewed by admin.")
+      router.push("/dashboard/products")
     } catch (error) {
-      console.error("Error creating product:", error);
-      alert("Failed to create product. Please try again.");
+      console.error("Error creating product:", error)
+      alert("Failed to create product. Please try again.")
     } finally {
-      setIsSubmitting(false);
+      setIsSubmitting(false)
     }
-  };
+  }
 
   if (isLoading || isFetchingCompany) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <LoadingSpinner size={48} />
       </div>
-    );
+    )
   }
 
   if (!currentUser || currentUser.userRole !== "seller") {
@@ -283,7 +395,7 @@ export default function AddProductPage() {
           </CardContent>
         </Card>
       </div>
-    );
+    )
   }
 
   if (!companyData) {
@@ -298,7 +410,7 @@ export default function AddProductPage() {
           </CardContent>
         </Card>
       </div>
-    );
+    )
   }
 
   if (companyData.approvalStatus !== "approved") {
@@ -307,8 +419,7 @@ export default function AddProductPage() {
         <Card className="w-full max-w-md">
           <CardContent className="p-6">
             <p className="text-center mb-4">
-              Your company profile is {companyData.approvalStatus}. 
-              You can only list products after admin approval.
+              Your company profile is {companyData.approvalStatus}. You can only list products after admin approval.
             </p>
             <Button onClick={() => router.push("/dashboard")} className="w-full">
               Back to Dashboard
@@ -316,7 +427,7 @@ export default function AddProductPage() {
           </CardContent>
         </Card>
       </div>
-    );
+    )
   }
 
   return (
@@ -325,11 +436,7 @@ export default function AddProductPage() {
         <Card className="w-full max-w-4xl mx-auto">
           <CardHeader>
             <div className="flex items-center space-x-4 mb-4">
-              <Button 
-                onClick={() => router.push("/dashboard/products")}
-                variant="outline"
-                size="sm"
-              >
+              <Button onClick={() => router.push("/dashboard/products")} variant="outline" size="sm">
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Back to Products
               </Button>
@@ -342,7 +449,7 @@ export default function AddProductPage() {
               {/* Basic Information */}
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold">Basic Information</h3>
-                
+
                 <div>
                   <Label htmlFor="title">Product Title *</Label>
                   <Input
@@ -367,11 +474,7 @@ export default function AddProductPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="hsc">HSC Code</Label>
-                    <Input
-                      id="hsc"
-                      value={formData.hsc}
-                      onChange={(e) => handleInputChange("hsc", e.target.value)}
-                    />
+                    <Input id="hsc" value={formData.hsc} onChange={(e) => handleInputChange("hsc", e.target.value)} />
                   </div>
                   <div>
                     <Label htmlFor="keywords">Keywords</Label>
@@ -388,10 +491,10 @@ export default function AddProductPage() {
               {/* Category Selection */}
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold">Category Selection *</h3>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
-                    <Label>Category</Label>
+                    <Label>Category *</Label>
                     <Select value={selectedCategory} onValueChange={handleCategoryChange}>
                       <SelectTrigger>
                         <SelectValue placeholder="Select category" />
@@ -408,8 +511,8 @@ export default function AddProductPage() {
 
                   <div>
                     <Label>Subcategory</Label>
-                    <Select 
-                      value={selectedSubcategory} 
+                    <Select
+                      value={selectedSubcategory}
                       onValueChange={handleSubcategoryChange}
                       disabled={!selectedCategory}
                     >
@@ -428,8 +531,8 @@ export default function AddProductPage() {
 
                   <div>
                     <Label>Sub-subcategory</Label>
-                    <Select 
-                      value={selectedSubSubcategory} 
+                    <Select
+                      value={selectedSubSubcategory}
                       onValueChange={handleSubSubcategoryChange}
                       disabled={!selectedSubcategory}
                     >
@@ -447,10 +550,10 @@ export default function AddProductPage() {
                   </div>
                 </div>
 
-                {getFinalCategoryString() && (
+                {getCategoryDisplayString() && (
                   <div className="p-3 bg-gray-100 rounded">
                     <p className="text-sm text-gray-600">Selected Category Path:</p>
-                    <p className="font-medium">{getFinalCategoryString()}</p>
+                    <p className="font-medium">{getCategoryDisplayString()}</p>
                   </div>
                 )}
               </div>
@@ -458,7 +561,7 @@ export default function AddProductPage() {
               {/* Pricing & Contact */}
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold">Pricing & Contact</h3>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <Label htmlFor="price">Price *</Label>
@@ -473,7 +576,10 @@ export default function AddProductPage() {
                   </div>
                   <div>
                     <Label htmlFor="measurement">Measurement Unit *</Label>
-                    <Select value={formData.measurement} onValueChange={(value) => handleInputChange("measurement", value)}>
+                    <Select
+                      value={formData.measurement}
+                      onValueChange={(value) => handleInputChange("measurement", value)}
+                    >
                       <SelectTrigger>
                         <SelectValue placeholder="Select unit" />
                       </SelectTrigger>
@@ -501,7 +607,10 @@ export default function AddProductPage() {
               {/* Product Images */}
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold">Product Images</h3>
-                
+                <p className="text-sm text-gray-600">
+                  Upload up to 10 images. Large images will be automatically compressed to meet size limits.
+                </p>
+
                 <div>
                   <Label htmlFor="images">Upload Images</Label>
                   <div className="mt-2">
@@ -518,33 +627,40 @@ export default function AddProductPage() {
                       variant="outline"
                       onClick={() => document.getElementById("images").click()}
                       className="w-full"
+                      disabled={formData.images.length >= 10}
                     >
                       <Upload className="w-4 h-4 mr-2" />
-                      Upload Images
+                      {formData.images.length >= 10 ? "Maximum Images Reached" : "Upload Images"}
                     </Button>
                   </div>
                 </div>
 
                 {formData.images.length > 0 && (
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {formData.images.map((image, index) => (
-                      <div key={index} className="relative">
-                        <img
-                          src={URL.createObjectURL(image) || "/placeholder.svg"}
-                          alt={`Product ${index + 1}`}
-                          className="w-full h-24 object-cover rounded border"
-                        />
-                        <Button
-                          type="button"
-                          variant="destructive"
-                          size="sm"
-                          className="absolute -top-2 -right-2 w-6 h-6 p-0"
-                          onClick={() => removeImage(index)}
-                        >
-                          <X className="w-3 h-3" />
-                        </Button>
-                      </div>
-                    ))}
+                  <div>
+                    <p className="text-sm text-gray-600 mb-2">{formData.images.length} of 10 images selected</p>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      {formData.images.map((image, index) => (
+                        <div key={index} className="relative">
+                          <img
+                            src={URL.createObjectURL(image) || "/placeholder.svg"}
+                            alt={`Product ${index + 1}`}
+                            className="w-full h-24 object-cover rounded border"
+                          />
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="sm"
+                            className="absolute -top-2 -right-2 w-6 h-6 p-0"
+                            onClick={() => removeImage(index)}
+                          >
+                            <X className="w-3 h-3" />
+                          </Button>
+                          <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white text-xs p-1 rounded-b">
+                            {(image.size / 1024 / 1024).toFixed(2)}MB
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
@@ -552,7 +668,7 @@ export default function AddProductPage() {
               {/* Product Details */}
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold">Product Details</h3>
-                
+
                 <div>
                   <Label htmlFor="productDescription">Detailed Description</Label>
                   <Textarea
@@ -603,8 +719,8 @@ export default function AddProductPage() {
                     <Button
                       type="button"
                       onClick={() => {
-                        addToArray("productDetails", "exportCountries", newExportCountry);
-                        setNewExportCountry("");
+                        addToArray("productDetails", "exportCountries", newExportCountry)
+                        setNewExportCountry("")
                       }}
                     >
                       <Plus className="w-4 h-4" />
@@ -642,8 +758,8 @@ export default function AddProductPage() {
                     <Button
                       type="button"
                       onClick={() => {
-                        addToArray("productDetails", "relatedSectors", newRelatedSector);
-                        setNewRelatedSector("");
+                        addToArray("productDetails", "relatedSectors", newRelatedSector)
+                        setNewRelatedSector("")
                       }}
                     >
                       <Plus className="w-4 h-4" />
@@ -673,7 +789,7 @@ export default function AddProductPage() {
               {/* Specifications */}
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold">Specifications</h3>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="brand">Brand</Label>
@@ -738,19 +854,10 @@ export default function AddProductPage() {
 
               {/* Submit Button */}
               <div className="flex gap-4">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => router.push("/dashboard")}
-                  className="flex-1"
-                >
+                <Button type="button" variant="outline" onClick={() => router.push("/dashboard")} className="flex-1">
                   Cancel
                 </Button>
-                <Button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="flex-1"
-                >
+                <Button type="submit" disabled={isSubmitting} className="flex-1">
                   {isSubmitting ? (
                     <>
                       <LoadingSpinner size={16} className="mr-2" />
@@ -766,5 +873,5 @@ export default function AddProductPage() {
         </Card>
       </div>
     </AuthGuard>
-  );
+  )
 }
