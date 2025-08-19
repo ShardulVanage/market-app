@@ -1,6 +1,5 @@
 "use client"
 
-
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -28,9 +27,12 @@ import { useAuth } from "@/context/AuthContext"
 import { toast } from "@/hooks/use-toast"
 import { MessageSquare, Send, LogIn, Clock } from "lucide-react"
 
-
-
-export function InquiryDialog({ product, seller, trigger }) {
+export function InquiryDialog({ 
+  product = null, 
+  requirement = null, 
+  seller, 
+  trigger 
+}) {
   const { currentUser, pb } = useAuth()
   const router = useRouter()
   const [message, setMessage] = useState("")
@@ -38,6 +40,11 @@ export function InquiryDialog({ product, seller, trigger }) {
   const [isOpen, setIsOpen] = useState(false)
   const [showLoginPrompt, setShowLoginPrompt] = useState(false)
   const [showProfilePendingPrompt, setShowProfilePendingPrompt] = useState(false)
+
+  // Determine if this is for a product or requirement
+  const isProductInquiry = !!product
+  const isRequirementInquiry = !!requirement
+  const itemData = product || requirement
 
   const handleTriggerClick = (e) => {
     e.preventDefault()
@@ -54,7 +61,7 @@ export function InquiryDialog({ product, seller, trigger }) {
 
   const handleLoginRedirect = () => {
     setShowLoginPrompt(false)
-    router.push("/login") // Adjust this path to your login page
+    router.push("/login")
   }
 
   const handleSubmitInquiry = async () => {
@@ -66,6 +73,7 @@ export function InquiryDialog({ product, seller, trigger }) {
       })
       return
     }
+    
     if (currentUser.profileStatus !== "approved") {
       toast({
         title: "Profile Approval Required",
@@ -74,6 +82,7 @@ export function InquiryDialog({ product, seller, trigger }) {
       })
       return
     }
+    
     if (!message.trim()) {
       toast({
         title: "Message Required",
@@ -82,22 +91,45 @@ export function InquiryDialog({ product, seller, trigger }) {
       })
       return
     }
+
+    // Validate that we have either a product or requirement
+    if (!isProductInquiry && !isRequirementInquiry) {
+      toast({
+        title: "Invalid Request",
+        description: "Either product or requirement must be provided.",
+        variant: "destructive",
+      })
+      return
+    }
+
     setIsSubmitting(true)
+    
     try {
       const inquiryData = {
         buyer: currentUser.id,
-        seller: seller.id,
-        product: product.id,
+        seller: seller?.id,
         message: message.trim(),
         approvalStatus: "pending",
         status: "sent",
         chat: [],
       }
+
+      // Add product or requirement based on what's provided
+      if (isProductInquiry) {
+        inquiryData.product = product.id
+      }
+      
+      if (isRequirementInquiry) {
+        inquiryData.requirement = requirement.id
+      }
+
       const result = await pb.collection("inquiries").create(inquiryData)
+      
       toast({
         title: "Inquiry Sent Successfully",
-        description: "Your inquiry has been sent to the seller. You'll be notified once it's approved.",
+        description: `Your ${isProductInquiry ? 'product' : 'requirement'} inquiry has been sent to the ${isProductInquiry ? 'seller' : 'buyer'}. You'll be notified once it's approved.`,
       })
+      
       setMessage("")
       setIsOpen(false)
     } catch (error) {
@@ -112,10 +144,38 @@ export function InquiryDialog({ product, seller, trigger }) {
     }
   }
 
+  const getDialogTitle = () => {
+    if (isProductInquiry) return "Contact Seller"
+    if (isRequirementInquiry) return "Send Proposal"
+    return "Send Inquiry"
+  }
+
+  const getDialogDescription = () => {
+    const itemTitle = itemData?.title || itemData?.quoteFor || "this item"
+    const actionText = isProductInquiry ? "Send a message to the seller" : "Send your proposal to the buyer"
+    
+    return `${actionText} about "${itemTitle}". Your inquiry will be reviewed before you can start chatting.`
+  }
+
+  const getItemDetailsTitle = () => {
+    return isProductInquiry ? "Product Details" : "Requirement Details"
+  }
+
+  const getRecipientTitle = () => {
+    return isProductInquiry ? "Seller Information" : "Buyer Information"
+  }
+
+  const getPlaceholderText = () => {
+    if (isProductInquiry) {
+      return "Hi, I'm interested in this product. Could you please provide more details about..."
+    }
+    return "Hi, I'd like to submit a proposal for your requirement. I have experience in..."
+  }
+
   const defaultTrigger = (
     <Button size="lg" className="flex-1" onClick={handleTriggerClick}>
       <MessageSquare className="h-5 w-5 mr-2" />
-      Contact Seller
+      {getDialogTitle()}
     </Button>
   )
 
@@ -129,7 +189,7 @@ export function InquiryDialog({ product, seller, trigger }) {
               Login Required
             </AlertDialogTitle>
             <AlertDialogDescription>
-              You need to be logged in to send an inquiry to the seller. Would you like to log in now?
+              You need to be logged in to send an inquiry. Would you like to log in now?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -148,7 +208,7 @@ export function InquiryDialog({ product, seller, trigger }) {
             </AlertDialogTitle>
             <AlertDialogDescription>
               Your profile is currently {currentUser?.profileStatus || "pending"} and needs to be approved before you
-              can send inquiries to sellers. Please wait for admin approval or contact support if you have questions.
+              can send inquiries. Please wait for admin approval or contact support if you have questions.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -168,10 +228,9 @@ export function InquiryDialog({ product, seller, trigger }) {
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle>Send Inquiry to Seller</DialogTitle>
+            <DialogTitle>{getDialogTitle()}</DialogTitle>
             <DialogDescription>
-              Send a message to the seller about "{product?.title}". Your inquiry will be reviewed before you can start
-              chatting.
+              {getDialogDescription()}
             </DialogDescription>
           </DialogHeader>
 
@@ -180,25 +239,39 @@ export function InquiryDialog({ product, seller, trigger }) {
               <Label htmlFor="inquiry-message">Your Message</Label>
               <Textarea
                 id="inquiry-message"
-                placeholder="Hi, I'm interested in this product. Could you please provide more details about..."
+                placeholder={getPlaceholderText()}
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 rows={4}
                 className="resize-none"
+                maxLength={500}
               />
               <p className="text-sm text-muted-foreground">{message.length}/500 characters</p>
             </div>
 
             <div className="bg-muted/50 p-3 rounded-lg">
-              <h4 className="font-medium text-sm mb-1">Product Details</h4>
-              <p className="text-sm text-muted-foreground">{product?.title}</p>
-              <p className="text-sm font-medium text-primary">${product?.price}</p>
+              <h4 className="font-medium text-sm mb-1">{getItemDetailsTitle()}</h4>
+              <p className="text-sm text-muted-foreground">
+                {itemData?.title || itemData?.quoteFor || "No title available"}
+              </p>
+              {itemData?.price && (
+                <p className="text-sm font-medium text-primary">${itemData.price}</p>
+              )}
+              {itemData?.requirementDetails && (
+                <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                  {itemData.requirementDetails}
+                </p>
+              )}
             </div>
 
-            <div className="bg-muted/50 p-3 rounded-lg">
-              <h4 className="font-medium text-sm mb-1">Seller Information</h4>
-              <p className="text-sm text-muted-foreground">{seller?.name}</p>
-            </div>
+            {seller && (
+              <div className="bg-muted/50 p-3 rounded-lg">
+                <h4 className="font-medium text-sm mb-1">{getRecipientTitle()}</h4>
+                <p className="text-sm text-muted-foreground">
+                  {seller.name || seller.email || "Unknown user"}
+                </p>
+              </div>
+            )}
           </div>
 
           <DialogFooter>
@@ -214,7 +287,7 @@ export function InquiryDialog({ product, seller, trigger }) {
               ) : (
                 <>
                   <Send className="h-4 w-4 mr-2" />
-                  Send Inquiry
+                  {isProductInquiry ? "Send Inquiry" : "Send Proposal"}
                 </>
               )}
             </Button>
