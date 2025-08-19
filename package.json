@@ -9,6 +9,8 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@headlessui/react": "^2.2.7",
+    "@heroicons/react": "^2.2.0",
     "@hookform/resolvers": "^5.2.1",
     "@radix-ui/react-accordion": "^1.2.11",
     "@radix-ui/react-alert-dialog": "^1.1.14",
@@ -42,6 +44,7 @@
     "crypto-js": "^4.2.0",
     "date-fns": "^4.1.0",
     "embla-carousel-react": "^8.6.0",
+    "framer-motion": "^12.23.12",
     "input-otp": "^1.4.2",
     "js-cookie": "^3.0.5",
     "lucide-react": "^0.536.0",

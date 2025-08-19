@@ -7,9 +7,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { ArrowLeft, Star, Heart, Share2, ShoppingCart, Phone, Mail, MapPin } from "lucide-react"
+import { ArrowLeft, Star, Heart, Phone, Mail, MapPin } from "lucide-react"
 import { getClientPb } from "@/lib/pocketbase"
 import { usePocketBaseFetchWithLoading } from "@/hooks/use-pocketbase-fetch"
+import { InquiryDialog } from "@/components/inquiry-dialog"
+import { useFavorites } from "@/hooks/use-favorites"
+import { ShareButton } from "@/components/share-button"
 
 export default function ProductDetailPage() {
   const params = useParams()
@@ -25,10 +28,13 @@ export default function ProductDetailPage() {
   const isLoading = usePocketBaseFetchWithLoading(
     async (signal) => {
       try {
+        console.log("[v0] Fetching product details for:", productId)
+
         // Fetch product details
         const productData = await pb.collection("products").getOne(productId, {
           expand: "seller,company",
           signal,
+          requestKey: `product-${productId}-${Date.now()}`,
         })
 
         setProduct(productData)
@@ -41,17 +47,26 @@ export default function ProductDetailPage() {
             filter: `approvalStatus = "approved" && category = "${productData.category}" && id != "${productId}"`,
             sort: "-created",
             signal,
+            requestKey: `related-${productId}-${Date.now()}`,
           })
           setRelatedProducts(related.items)
         }
+
+        console.log("[v0] Product data loaded successfully")
       } catch (error) {
         if (error.name !== "AbortError") {
-          console.error("Error fetching product:", error)
+          console.error("[v0] Error fetching product:", error)
         }
       }
     },
     [productId],
   )
+
+  const {
+    isFavorite,
+    isLoading: favoritesLoading,
+    toggleFavorite,
+  } = useFavorites(product ? (productId) : null)
 
   if (isLoading) {
     return (
@@ -189,16 +204,17 @@ export default function ProductDetailPage() {
             )}
 
             <div className="flex space-x-4">
-              <Button size="lg" className="flex-1">
-                <ShoppingCart className="h-5 w-5 mr-2" />
-                Contact Seller
+              <InquiryDialog product={product} seller={seller} />
+              <Button
+                variant="outline"
+                size="lg"
+                onClick={toggleFavorite}
+                disabled={favoritesLoading}
+                className={isFavorite ? "text-red-500 border-red-500" : ""}
+              >
+                <Heart className={`h-5 w-5 ${isFavorite ? "fill-current" : ""}`} />
               </Button>
-              <Button variant="outline" size="lg">
-                <Heart className="h-5 w-5" />
-              </Button>
-              <Button variant="outline" size="lg">
-                <Share2 className="h-5 w-5" />
-              </Button>
+              <ShareButton product={product} />
             </div>
           </div>
         </div>
@@ -303,10 +319,16 @@ export default function ProductDetailPage() {
                   )}
                 </div>
 
-                <Button className="w-full">
-                  <Phone className="h-4 w-4 mr-2" />
-                  Contact Seller
-                </Button>
+                <InquiryDialog
+                  product={product}
+                  seller={seller}
+                  trigger={
+                    <Button className="w-full">
+                      <Phone className="h-4 w-4 mr-2" />
+                      Contact Seller
+                    </Button>
+                  }
+                />
               </CardContent>
             </Card>
 

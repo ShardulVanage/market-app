@@ -25,6 +25,7 @@ import {
   TrendingUp,
   Eye,
   Crown,
+  Heart,
 } from "lucide-react"
 import { MessageSquare, FileText } from "lucide-react"
 
@@ -172,8 +173,8 @@ export default function DashboardPage() {
     <AuthGuard redirectIfNotAuthenticated="/login">
       <div className="min-h-screen bg-gray-50">
         {/* Header */}
-        <div className="bg-white shadow-sm border-b">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className=" ">
+          <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between items-center py-6">
               <div>
                 <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
@@ -193,7 +194,7 @@ export default function DashboardPage() {
                     non member
                   </Badge>
                 )}
-                <Button
+                {/* <Button
                   onClick={handleLogout}
                   variant="outline"
                   size="sm"
@@ -201,7 +202,7 @@ export default function DashboardPage() {
                 >
                   <LogOut className="w-4 h-4 mr-2" />
                   Logout
-                </Button>
+                </Button> */}
               </div>
             </div>
           </div>
@@ -329,6 +330,14 @@ export default function DashboardPage() {
                       >
                         <User className="w-6 h-6" />
                         <span>Edit Profile</span>
+                      </Button>
+                      <Button
+                        onClick={() => router.push("/dashboard/favorites")}
+                        variant="outline"
+                        className="h-20 flex flex-col items-center justify-center space-y-2"
+                      >
+                        <Heart className="w-6 h-6" />
+                        <span>My Favorites</span>
                       </Button>
                       {currentUser?.userRole === "seller" && hasActiveMembership && (
                         <>

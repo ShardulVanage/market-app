@@ -3,6 +3,8 @@ import './globals.css';
 import { AuthProvider } from '@/context/AuthContext';
 import { getServerPb } from '@/lib/pocketbase';
 import { cookies } from 'next/headers'; // Import cookies here
+import Navbar from '@/components/Nav';
+import Footer from '@/components/Footer';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -27,7 +29,9 @@ export default async function RootLayout({ children }) {
       </head>
       <body className={inter.className}>
         <AuthProvider initialAuth={initialAuth}>
+          <Navbar/>
           {children}
+          <Footer/>
         </AuthProvider>
       </body>
     </html>
