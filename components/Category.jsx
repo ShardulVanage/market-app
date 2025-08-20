@@ -30,18 +30,18 @@ export default function Category() {
       {/* Categories Section */}
       <section className="py-16">
         <div className="container mx-auto px-4">
-          <div className="text-center mb-12">
-         <h1
-                 
-                  className="text-3xl font-bold tracking-tight text-gray-900 sm:text-3xl lg:text-4xl xl:text-5xl"
-                >
-                  <span className="block">Explore
-</span>
-                  <span className="block" style={{ color: "#29688A" }}>
-                  Product Categories
-                  </span>
-                </h1>
-            <p className="text-muted-foreground">Find exactly what you're looking for</p>
+          
+
+           <div className="text-center mb-16">
+            <div className="inline-block mb-4">
+              <h2 className="text-4xl font-bold bg-gradient-to-r from-[#29688A] to-[#29688A]/80 bg-clip-text text-transparent mb-2">
+              Explore   Product Categories
+              </h2>
+              <div className="h-1 w-24 bg-gradient-to-r from-[#29688A] to-[#29688A]/60 rounded-full mx-auto"></div>
+            </div>
+            <p className="text-gray-600 text-lg max-w-2xl mx-auto">
+            Find exactly what you're looking for
+            </p>
           </div>
 
           <div className="relative">
@@ -123,6 +123,17 @@ export default function Category() {
                 <div key={index} className="w-2 h-2 rounded-full bg-muted-foreground/30" />
               ))}
             </div>
+          </div>
+            <div className="text-center mt-8">
+            <Link href="/category">
+              <Button
+                variant="outline"
+                size="lg"
+                className="border-2 border-[#29688A] text-[#29688A] hover:bg-[#29688A] hover:text-white transition-all duration-300 px-8 py-3 text-lg font-semibold rounded-full shadow-lg hover:shadow-xl hover:shadow-[#29688A]/25 bg-transparent"
+              >
+                 View All Categories
+              </Button>
+            </Link>
           </div>
         </div>
       </section>

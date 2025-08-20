@@ -100,7 +100,7 @@ function ProductsSection() {
                               : "/placeholder.svg?height=200&width=300"
                           }
                           alt={product.title}
-                          className="w-full h-80 object-cover group-hover:scale-110 transition-transform duration-500"
+                          className="w-full h-80 object-contain group-hover:scale-110 transition-transform duration-500"
                         />
                         <div className="absolute top-4 right-4 bg-[#29688A] text-white px-3 py-1 rounded-full text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                           Featured
@@ -113,7 +113,7 @@ function ProductsSection() {
                         <p className="text-sm text-gray-600 mb-4 line-clamp-2 leading-relaxed">{product.description}</p>
                         <div className="flex items-center justify-between">
                           <span className="text-2xl font-bold text-[#29688A] bg-gradient-to-r from-[#29688A] to-[#29688A]/80 bg-clip-text ">
-                            ${product.price}
+                            ₹{product.price}
                           </span>
                           <div className="w-8 h-8 rounded-full bg-[#29688A]/10 flex items-center justify-center group-hover:bg-[#29688A] transition-colors duration-300">
                             <ChevronRight className="w-4 h-4 text-[#29688A] group-hover:text-white transition-colors duration-300" />

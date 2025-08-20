@@ -84,25 +84,25 @@ export default function Footer() {
             <nav className="space-y-3">
               <Link
                 href="/about"
-                className="block text-gray-50 hover:text-[#29688A] transition-colors text-sm"
+                className="block text-gray-50 hover:text-white transition-colors text-sm"
               >
                 About Us
               </Link>
               <Link
                 href="/products"
-                className="block text-gray-50 hover:text-[#29688A] transition-colors text-sm"
+                className="block text-gray-50 hover:text-white transition-colors text-sm"
               >
                 Products
               </Link>
               <Link
                 href="/companies"
-                className="block text-gray-50 hover:text-[#29688A] transition-colors text-sm"
+                className="block text-gray-50 hover:text-white transition-colors text-sm"
               >
                 Companies
               </Link>
               <Link
                 href="/category"
-                className="block text-gray-50 hover:text-[#29688A] transition-colors text-sm"
+                className="block text-gray-50 hover:text-white transition-colors text-sm"
               >
                 Product Categories
               </Link>
@@ -115,25 +115,25 @@ export default function Footer() {
             <nav className="space-y-3">
               <Link
                 href="/dashboard/requirements/add"
-                className="block text-gray-50 hover:text-[#29688A] transition-colors text-sm"
+                className="block text-gray-50 hover:text-white transition-colors text-sm"
               >
                 Post Requirements
               </Link>
               <Link
                 href="/browse-requirements"
-                className="block text-gray-50 hover:text-[#29688A] transition-colors text-sm"
+                className="block text-gray-50 hover:text-white transition-colors text-sm"
               >
                 Browse Requirements
               </Link>
               <Link
                 href="/register"
-                className="block text-gray-50 hover:text-[#29688A] transition-colors text-sm"
+                className="block text-gray-50 hover:text-white transition-colors text-sm"
               >
                 Become a Supplier
               </Link>
               <Link
                 href="/dashboard"
-                className="block text-gray-50 hover:text-[#29688A] transition-colors text-sm"
+                className="block text-gray-50 hover:text-white transition-colors text-sm"
               >
                 Dashboard
               </Link>
@@ -155,7 +155,7 @@ export default function Footer() {
                 <Phone className="h-4 w-4 text-[#bbe7ff] flex-shrink-0" />
                 <a
                   href="tel:+1234567890"
-                  className="text-gray-50 hover:text-[#29688A] transition-colors text-sm"
+                  className="text-gray-50 hover:text-white transition-colors text-sm"
                 >
                   +1 (234) 567-890
                 </a>
@@ -164,7 +164,7 @@ export default function Footer() {
                 <Mail className="h-4 w-4 text-[#bbe7ff] flex-shrink-0" />
                 <a
                   href="mailto:contact@marketplace.com"
-                  className="text-gray-50 hover:text-[#29688A] transition-colors text-sm"
+                  className="text-gray-50 hover:text-white transition-colors text-sm"
                 >
                   contact@marketplace.com
                 </a>
@@ -184,19 +184,19 @@ export default function Footer() {
             <div className="flex items-center space-x-6">
               <Link
                 href="/privacy"
-                className="text-gray-900 hover:text-[#29688A] transition-colors text-sm"
+                className="text-gray-900 hover:text-white transition-colors text-sm"
               >
                 Privacy Policy
               </Link>
               <Link
                 href="/terms"
-                className="text-gray-900 hover:text-[#29688A] transition-colors text-sm"
+                className="text-gray-900 hover:text-white transition-colors text-sm"
               >
                 Terms of Service
               </Link>
               <Link
                 href="/support"
-                className="text-gray-900 hover:text-[#29688A] transition-colors text-sm"
+                className="text-gray-900 hover:text-white transition-colors text-sm"
               >
                 Support
               </Link>

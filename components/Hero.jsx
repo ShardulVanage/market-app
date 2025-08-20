@@ -59,7 +59,7 @@ export default function Hero() {
                 >
                   <div className="relative rounded-full px-4 py-2 text-sm leading-6 text-gray-600 bg-gray-50 border border-gray-200 hover:bg-gray-100 transition-colors duration-300">
                     Connect with verified SMEs across India{" "}
-                    <a href="#" className="whitespace-nowrap font-semibold" style={{ color: "#29688A" }}>
+                    <a href="/register" className="whitespace-nowrap font-semibold" style={{ color: "#29688A" }}>
                       <span aria-hidden="true" className="absolute inset-0" />
                       Join now <span aria-hidden="true">→</span>
                     </a>
@@ -94,7 +94,7 @@ export default function Hero() {
                   className="mt-10 flex items-center gap-x-6"
                 >
                   <motion.a
-                    href="#"
+                    href="/products"
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     className="rounded-lg px-6 py-3 text-sm font-semibold text-white shadow-lg hover:shadow-xl transition-all duration-300"
@@ -103,7 +103,7 @@ export default function Hero() {
                     Start Exploring
                   </motion.a>
                   <motion.a
-                    href="#"
+                    href="register"
                     whileHover={{ x: 5 }}
                     className="text-sm font-semibold leading-6 text-gray-900 hover:text-gray-700 transition-colors duration-300"
                   >

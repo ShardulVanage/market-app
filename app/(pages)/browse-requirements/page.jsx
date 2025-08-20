@@ -197,9 +197,9 @@ export default function BrowseRequirementsPage() {
                         {requirement.quoteFor || "Requirement"}
                       </CardTitle>
                       {requirement.category && (
-                        <Badge variant="secondary" className="self-start bg-[#29688A]/10 text-[#29688A] border-[#29688A]/20">
+                        <p variant="secondary" className="self-start bg-[#29688A]/10 text-[#29688A] border-[#29688A]/20 rounded-r-3xl p-2 text-xs">
                           {requirement.category}
-                        </Badge>
+                        </p>
                       )}
                     </div>
                   </CardHeader>

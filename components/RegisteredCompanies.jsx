@@ -37,9 +37,17 @@ export default function RegisteredCompanies() {
     return (
       <section className="py-16 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">Registered Companies</h2>
-            <p className="text-gray-600 max-w-2xl mx-auto">Discover our trusted network of registered companies</p>
+          
+          <div className="text-center mb-16">
+            <div className="inline-block mb-4">
+              <h2 className="text-4xl font-bold bg-gradient-to-r from-[#29688A] to-[#29688A]/80 bg-clip-text text-transparent mb-2">
+             Registered Companies
+              </h2>
+              <div className="h-1 w-24 bg-gradient-to-r from-[#29688A] to-[#29688A]/60 rounded-full mx-auto"></div>
+            </div>
+            <p className="text-gray-600 text-lg max-w-2xl mx-auto">
+          Discover our trusted network of registered companies
+            </p>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
             {[...Array(8)].map((_, i) => (
@@ -58,10 +66,17 @@ export default function RegisteredCompanies() {
   return (
     <section className="py-16 bg-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-12">
-          <h2 className="text-3xl font-bold text-gray-900 mb-4">Registered Companies</h2>
-          <p className="text-gray-600 max-w-2xl mx-auto">Discover our trusted network of registered companies</p>
-        </div>
+       <div className="text-center mb-16">
+            <div className="inline-block mb-4">
+              <h2 className="text-4xl font-bold bg-gradient-to-r from-[#29688A] to-[#29688A]/80 bg-clip-text text-transparent mb-2">
+             Registered Companies
+              </h2>
+              <div className="h-1 w-24 bg-gradient-to-r from-[#29688A] to-[#29688A]/60 rounded-full mx-auto"></div>
+            </div>
+            <p className="text-gray-600 text-lg max-w-2xl mx-auto">
+          Discover our trusted network of registered companies
+            </p>
+          </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-12">
           {companies.map((company) => (
@@ -85,16 +100,18 @@ export default function RegisteredCompanies() {
         </div>
 
         <div className="text-center">
-          <Link href="/companies">
-            <Button
-              className="px-8 py-3 text-white font-medium rounded-lg transition-colors duration-300"
-              style={{ backgroundColor: "#29688A" }}
-              onMouseEnter={(e) => (e.target.style.backgroundColor = "#1e4f6b")}
-              onMouseLeave={(e) => (e.target.style.backgroundColor = "#29688A")}
-            >
-              View More Companies
-            </Button>
-          </Link>
+          
+          <div className="text-center mt-16">
+            <Link href="/companies">
+              <Button
+                variant="outline"
+                size="lg"
+                className="border-2 border-[#29688A] text-[#29688A] hover:bg-[#29688A] hover:text-white transition-all duration-300 px-8 py-3 text-lg font-semibold rounded-full shadow-lg hover:shadow-xl hover:shadow-[#29688A]/25 bg-transparent"
+              >
+                 View More Companies
+              </Button>
+            </Link>
+          </div>
         </div>
       </div>
     </section>

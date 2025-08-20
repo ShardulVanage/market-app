@@ -16,7 +16,6 @@ import {
   Package,
   Plus,
   Edit,
-  LogOut,
   CheckCircle,
   Clock,
   XCircle,
@@ -72,7 +71,6 @@ export default function DashboardPage() {
             }
           }
 
-          // Fetch products data
           try {
             const products = await pb.collection("products").getFullList({
               filter: `user="${currentUser.id}"`,
@@ -81,22 +79,24 @@ export default function DashboardPage() {
             })
             setProductsData(products)
 
-            // Calculate stats
-            const stats = products.reduce(
-              (acc, product) => {
-                acc.totalProducts++
-                if (product.approvalStatus === "approved") acc.approvedProducts++
-                else if (product.approvalStatus === "pending") acc.pendingProducts++
-                else if (product.approvalStatus === "rejected") acc.rejectedProducts++
-                return acc
-              },
-              { totalProducts: 0, approvedProducts: 0, pendingProducts: 0, rejectedProducts: 0 },
-            )
-            setStats(stats)
+            // Calculate stats properly
+            const calculatedStats = {
+              totalProducts: products.length,
+              approvedProducts: products.filter((p) => p.approvalStatus === "approved").length,
+              pendingProducts: products.filter((p) => p.approvalStatus === "pending").length,
+              rejectedProducts: products.filter((p) => p.approvalStatus === "rejected").length,
+            }
+            setStats(calculatedStats)
           } catch (error) {
             if (error.name !== "AbortError") {
               console.log("No products found")
               setProductsData([])
+              setStats({
+                totalProducts: 0,
+                approvedProducts: 0,
+                pendingProducts: 0,
+                rejectedProducts: 0,
+              })
             }
           }
         }
@@ -161,7 +161,7 @@ export default function DashboardPage() {
 
   if (isLoading || isFetchingData) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-white">
         <LoadingSpinner />
       </div>
     )
@@ -171,230 +171,245 @@ export default function DashboardPage() {
 
   return (
     <AuthGuard redirectIfNotAuthenticated="/login">
-      <div className="min-h-screen bg-gray-50">
-        {/* Header */}
-        <div className=" ">
-          <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between items-center py-6">
+      <div className="min-h-screen bg-white">
+        <div className="border-b border-gray-100">
+          <div className="max-w-screen-2xl mx-auto px-6 lg:px-8">
+            <div className="flex justify-between items-center py-8">
               <div>
-                <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-                <p className="text-gray-600">Welcome back, {currentUser?.firstName || currentUser?.email || "User"}!</p>
+                <h1 className="text-2xl font-semibold text-gray-900 mb-1">Dashboard</h1>
+                <p className="text-gray-500 text-sm">
+                  Welcome back, {currentUser?.firstName || currentUser?.email || "User"}
+                </p>
               </div>
-              <div className="flex items-center space-x-4">
-                <Badge variant="outline" className="text-sm">
+              <div className="flex items-center gap-3">
+                <Badge variant="outline" className="text-xs font-medium border-gray-200 text-gray-600">
                   {currentUser?.userRole || "Loading..."}
                 </Badge>
                 {hasActiveMembership ? (
-                  <Badge className="bg-green-500 text-white">
+                  <Badge className="bg-[#29688A] text-white text-xs font-medium hover:bg-[#29688A]/90">
                     <Crown className="w-3 h-3 mr-1" />
                     Member
                   </Badge>
                 ) : (
-                  <Badge variant="outline" className="text-orange-600 border-orange-600">
-                    non member
+                  <Badge variant="outline" className="text-gray-500 border-gray-200 text-xs font-medium">
+                    Free Plan
                   </Badge>
                 )}
-                {/* <Button
-                  onClick={handleLogout}
-                  variant="outline"
-                  size="sm"
-                  className="text-red-600 hover:text-red-700 bg-transparent"
-                >
-                  <LogOut className="w-4 h-4 mr-2" />
-                  Logout
-                </Button> */}
               </div>
             </div>
           </div>
         </div>
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          {/* Status Alerts */}
-          <div className="space-y-4 mb-8">
+        <div className="max-w-7xl mx-auto px-6 lg:px-8 py-8">
+          <div className="space-y-3 mb-8">
             {!hasActiveMembership && (
-              <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-l-4 border-blue-400 p-4 rounded-r-lg">
+              <div className="bg-[#29688A]/5 border border-[#29688A]/20 rounded-lg p-4">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center">
-                    <Crown className="w-5 h-5 text-blue-400 mr-3" />
+                  <div className="flex items-center gap-3">
+                    <Crown className="w-5 h-5 text-[#29688A]" />
                     <div>
-                      <p className="font-medium text-blue-800">Upgrade to Premium Membership</p>
-                      <p className="text-blue-700 text-sm">
-                        Unlock advanced features, priority support, and enhanced visibility for your business.
-                      </p>
+                      <p className="font-medium text-[#29688A] text-sm">Upgrade to Premium</p>
+                      <p className="text-[#29688A]/70 text-xs">Unlock advanced features and enhanced visibility</p>
                     </div>
                   </div>
-                  <Button onClick={() => setShowMembershipDialog(true)} className="ml-4 bg-blue-600 hover:bg-blue-700">
-                    <Crown className="w-4 h-4 mr-2" />
-                    Upgrade Now
+                  <Button
+                    onClick={() => setShowMembershipDialog(true)}
+                    size="sm"
+                    className="bg-[#29688A] hover:bg-[#29688A]/90 text-white text-xs"
+                  >
+                    <Crown className="w-3 h-3 mr-1" />
+                    Upgrade
                   </Button>
                 </div>
               </div>
             )}
 
             {!isEmailVerified && (
-              <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-r-lg">
-                <div className="flex items-center">
-                  <Mail className="w-5 h-5 text-yellow-400 mr-3" />
-                  <div className="flex-1">
-                    <p className="font-medium text-yellow-800">Email Not Verified</p>
-                    <p className="text-yellow-700 text-sm">Please verify your email to access all features.</p>
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Mail className="w-5 h-5 text-amber-600" />
+                    <div>
+                      <p className="font-medium text-amber-800 text-sm">Email Verification Required</p>
+                      <p className="text-amber-700 text-xs">Verify your email to access all features</p>
+                    </div>
                   </div>
-                  <Button onClick={() => router.push("/verify-otp")} size="sm" className="ml-4">
-                    Verify Now
+                  <Button
+                    onClick={() => router.push("/verify-otp")}
+                    size="sm"
+                    variant="outline"
+                    className="border-amber-300 text-amber-700 hover:bg-amber-50 text-xs"
+                  >
+                    Verify
                   </Button>
                 </div>
               </div>
             )}
+
             {isEmailVerified && !isProfileApproved && (
-              <div className="bg-blue-50 border-l-4 border-blue-400 p-4 rounded-r-lg">
-                <div className="flex items-center">
-                  <Clock className="w-5 h-5 text-blue-400 mr-3" />
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-center gap-3">
+                  <Clock className="w-5 h-5 text-blue-600" />
                   <div>
-                    <p className="font-medium text-blue-800">Profile Under Review</p>
-                    <p className="text-blue-700 text-sm">
-                      Your profile is currently under review by an admin. Typically takes up to 48 hours.
-                    </p>
+                    <p className="font-medium text-blue-800 text-sm">Profile Under Review</p>
+                    <p className="text-blue-700 text-xs">Typically takes up to 48 hours</p>
                   </div>
                 </div>
               </div>
             )}
           </div>
 
-          {/* Stats Cards for Sellers */}
           {currentUser?.userRole === "seller" && companyData && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-              <Card>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+              <Card className="border-gray-100 shadow-sm">
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-medium text-gray-600">Total Products</p>
-                      <p className="text-3xl font-bold text-gray-900">{stats.totalProducts}</p>
+                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Total Products</p>
+                      <p className="text-2xl font-semibold text-gray-900 mt-1">{stats.totalProducts}</p>
                     </div>
-                    <Package className="w-8 h-8 text-blue-600" />
+                    <div className="w-10 h-10 bg-[#29688A]/10 rounded-lg flex items-center justify-center">
+                      <Package className="w-5 h-5 text-[#29688A]" />
+                    </div>
                   </div>
                 </CardContent>
               </Card>
-              <Card>
+
+              <Card className="border-gray-100 shadow-sm">
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-medium text-gray-600">Approved</p>
-                      <p className="text-3xl font-bold text-green-600">{stats.approvedProducts}</p>
+                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Approved</p>
+                      <p className="text-2xl font-semibold text-emerald-600 mt-1">{stats.approvedProducts}</p>
                     </div>
-                    <CheckCircle className="w-8 h-8 text-green-600" />
+                    <div className="w-10 h-10 bg-emerald-50 rounded-lg flex items-center justify-center">
+                      <CheckCircle className="w-5 h-5 text-emerald-600" />
+                    </div>
                   </div>
                 </CardContent>
               </Card>
-              <Card>
+
+              <Card className="border-gray-100 shadow-sm">
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-medium text-gray-600">Pending</p>
-                      <p className="text-3xl font-bold text-yellow-600">{stats.pendingProducts}</p>
+                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Pending</p>
+                      <p className="text-2xl font-semibold text-amber-600 mt-1">{stats.pendingProducts}</p>
                     </div>
-                    <Clock className="w-8 h-8 text-yellow-600" />
+                    <div className="w-10 h-10 bg-amber-50 rounded-lg flex items-center justify-center">
+                      <Clock className="w-5 h-5 text-amber-600" />
+                    </div>
                   </div>
                 </CardContent>
               </Card>
-              <Card>
+
+              <Card className="border-gray-100 shadow-sm">
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-medium text-gray-600">Rejected</p>
-                      <p className="text-3xl font-bold text-red-600">{stats.rejectedProducts}</p>
+                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Rejected</p>
+                      <p className="text-2xl font-semibold text-red-600 mt-1">{stats.rejectedProducts}</p>
                     </div>
-                    <XCircle className="w-8 h-8 text-red-600" />
+                    <div className="w-10 h-10 bg-red-50 rounded-lg flex items-center justify-center">
+                      <XCircle className="w-5 h-5 text-red-600" />
+                    </div>
                   </div>
                 </CardContent>
               </Card>
             </div>
           )}
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Quick Actions */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center">
-                    <TrendingUp className="w-5 h-5 mr-2" />
+              <Card className="border-gray-100 shadow-sm">
+                <CardHeader className="pb-4">
+                  <CardTitle className="flex items-center text-lg font-semibold text-gray-900">
+                    <TrendingUp className="w-5 h-5 mr-2 text-[#29688A]" />
                     Quick Actions
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   {isEmailVerified && isProfileApproved ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <Button
                         onClick={() => router.push("/dashboard/profile")}
                         variant="outline"
-                        className="h-20 flex flex-col items-center justify-center space-y-2"
+                        className="h-16 flex flex-col items-center justify-center gap-2 border-gray-200 hover:border-[#29688A] hover:bg-[#29688A]/5 transition-colors"
                       >
-                        <User className="w-6 h-6" />
-                        <span>Edit Profile</span>
+                        <User className="w-5 h-5 text-gray-600" />
+                        <span className="text-sm font-medium">Edit Profile</span>
                       </Button>
+
                       <Button
                         onClick={() => router.push("/dashboard/favorites")}
                         variant="outline"
-                        className="h-20 flex flex-col items-center justify-center space-y-2"
+                        className="h-16 flex flex-col items-center justify-center gap-2 border-gray-200 hover:border-[#29688A] hover:bg-[#29688A]/5 transition-colors"
                       >
-                        <Heart className="w-6 h-6" />
-                        <span>My Favorites</span>
+                        <Heart className="w-5 h-5 text-gray-600" />
+                        <span className="text-sm font-medium">My Favorites</span>
                       </Button>
+
                       {currentUser?.userRole === "seller" && hasActiveMembership && (
                         <>
                           <Button
                             onClick={() => router.push("/dashboard/company")}
                             variant="outline"
-                            className="h-20 flex flex-col items-center justify-center space-y-2"
+                            className="h-16 flex flex-col items-center justify-center gap-2 border-gray-200 hover:border-[#29688A] hover:bg-[#29688A]/5 transition-colors"
                           >
-                            <Building2 className="w-6 h-6" />
-                            <span>{companyData ? "Edit Company" : "Add Company"}</span>
+                            <Building2 className="w-5 h-5 text-gray-600" />
+                            <span className="text-sm font-medium">{companyData ? "Edit Company" : "Add Company"}</span>
                           </Button>
+
                           <Button
                             onClick={() => router.push("/dashboard/products")}
                             variant="outline"
-                            className="h-20 flex flex-col items-center justify-center space-y-2"
+                            className="h-16 flex flex-col items-center justify-center gap-2 border-gray-200 hover:border-[#29688A] hover:bg-[#29688A]/5 transition-colors"
                           >
-                            <Package className="w-6 h-6" />
-                            <span>Manage Products</span>
+                            <Package className="w-5 h-5 text-gray-600" />
+                            <span className="text-sm font-medium">Manage Products</span>
                           </Button>
+
                           <Button
                             onClick={() => router.push("/dashboard/products/add")}
                             disabled={!canListProducts}
-                            className="h-20 flex flex-col items-center justify-center space-y-2"
+                            className="h-16 flex flex-col items-center justify-center gap-2 bg-[#29688A] hover:bg-[#29688A]/90 text-white"
                           >
-                            <Plus className="w-6 h-6" />
-                            <span>Add Product</span>
+                            <Plus className="w-5 h-5" />
+                            <span className="text-sm font-medium">Add Product</span>
                           </Button>
                         </>
                       )}
+
                       {hasActiveMembership && (
                         <>
                           <Button
                             onClick={() => router.push("/dashboard/requirements")}
                             variant="outline"
-                            className="h-20 flex flex-col items-center justify-center space-y-2"
+                            className="h-16 flex flex-col items-center justify-center gap-2 border-gray-200 hover:border-[#29688A] hover:bg-[#29688A]/5 transition-colors"
                           >
-                            <FileText className="w-6 h-6" />
-                            <span>Requirements</span>
+                            <FileText className="w-5 h-5 text-gray-600" />
+                            <span className="text-sm font-medium">Requirements</span>
                           </Button>
+
                           <Button
                             onClick={() => router.push("/dashboard/inquiries")}
                             variant="outline"
-                            className="h-20 flex flex-col items-center justify-center space-y-2"
+                            className="h-16 flex flex-col items-center justify-center gap-2 border-gray-200 hover:border-[#29688A] hover:bg-[#29688A]/5 transition-colors"
                           >
-                            <MessageSquare className="w-6 h-6" />
-                            <span>Inquiries</span>
+                            <MessageSquare className="w-5 h-5 text-gray-600" />
+                            <span className="text-sm font-medium">Inquiries</span>
                           </Button>
                         </>
                       )}
+
                       {!hasActiveMembership && (
                         <div className="col-span-full">
-                          <div className="text-center py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
-                            <Crown className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                            <p className="text-gray-600 mb-4">Upgrade to access premium features</p>
+                          <div className="text-center py-8 bg-gray-50 rounded-lg border border-dashed border-gray-200">
+                            <Crown className="w-10 h-10 text-gray-400 mx-auto mb-3" />
+                            <p className="text-gray-600 mb-4 text-sm">Upgrade to access premium features</p>
                             <Button
                               onClick={() => setShowMembershipDialog(true)}
-                              className="bg-blue-600 hover:bg-blue-700"
+                              className="bg-[#29688A] hover:bg-[#29688A]/90 text-white text-sm"
                             >
                               <Crown className="w-4 h-4 mr-2" />
                               View Plans
@@ -405,21 +420,20 @@ export default function DashboardPage() {
                     </div>
                   ) : (
                     <div className="text-center py-8">
-                      <AlertTriangle className="w-12 h-12 text-yellow-500 mx-auto mb-4" />
-                      <p className="text-gray-600">Complete your profile setup to access all features.</p>
+                      <AlertTriangle className="w-10 h-10 text-amber-500 mx-auto mb-4" />
+                      <p className="text-gray-600 text-sm">Complete your profile setup to access all features</p>
                     </div>
                   )}
                 </CardContent>
               </Card>
             </div>
 
-            {/* Company Status / Profile Info */}
             <div>
               {currentUser?.userRole === "seller" ? (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center">
-                      <Building2 className="w-5 h-5 mr-2" />
+                <Card className="border-gray-100 shadow-sm">
+                  <CardHeader className="pb-4">
+                    <CardTitle className="flex items-center text-lg font-semibold text-gray-900">
+                      <Building2 className="w-5 h-5 mr-2 text-[#29688A]" />
                       Company Status
                     </CardTitle>
                   </CardHeader>
@@ -431,12 +445,12 @@ export default function DashboardPage() {
                     ) : companyData ? (
                       <div className="space-y-4">
                         <div>
-                          <p className="text-sm text-gray-600">Company Name</p>
-                          <p className="font-medium">{companyData.companyName}</p>
+                          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Company Name</p>
+                          <p className="font-medium text-gray-900 mt-1">{companyData.companyName}</p>
                         </div>
 
                         <div>
-                          <p className="text-sm text-gray-600">Status</p>
+                          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Status</p>
                           <Badge
                             variant={
                               companyData.approvalStatus === "approved"
@@ -445,36 +459,41 @@ export default function DashboardPage() {
                                   ? "destructive"
                                   : "secondary"
                             }
-                            className="mt-1"
+                            className={`mt-1 text-xs ${
+                              companyData.approvalStatus === "approved" ? "bg-[#29688A] text-white" : ""
+                            }`}
                           >
                             {companyData.approvalStatus}
                           </Badge>
                         </div>
+
                         {companyData.approvalStatus === "pending" && (
-                          <p className="text-sm text-blue-600">Awaiting admin approval</p>
+                          <p className="text-xs text-[#29688A]">Awaiting admin approval</p>
                         )}
                         {companyData.approvalStatus === "rejected" && (
-                          <p className="text-sm text-red-600">Please review and re-submit</p>
+                          <p className="text-xs text-red-600">Please review and re-submit</p>
                         )}
+
                         {companyData.website && (
                           <div>
-                            <p className="text-sm text-gray-600">Website</p>
+                            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Website</p>
                             <a
                               href={companyData.website}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-blue-600 hover:underline text-sm"
+                              className="text-[#29688A] hover:underline text-sm mt-1 block"
                             >
                               {companyData.website}
                             </a>
                           </div>
                         )}
+
                         {hasActiveMembership && (
                           <Button
                             onClick={() => router.push("/dashboard/company")}
                             variant="outline"
                             size="sm"
-                            className="w-full mt-4"
+                            className="w-full mt-4 border-gray-200 hover:border-[#29688A] hover:bg-[#29688A]/5"
                           >
                             <Edit className="w-4 h-4 mr-2" />
                             Edit Details
@@ -483,10 +502,14 @@ export default function DashboardPage() {
                       </div>
                     ) : (
                       <div className="text-center py-6">
-                        <Building2 className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                        <Building2 className="w-10 h-10 text-gray-400 mx-auto mb-4" />
                         <p className="text-gray-600 mb-4 text-sm">No company details added yet</p>
                         {hasActiveMembership && (
-                          <Button onClick={() => router.push("/dashboard/company")} size="sm" className="w-full">
+                          <Button
+                            onClick={() => router.push("/dashboard/company")}
+                            size="sm"
+                            className="w-full bg-[#29688A] hover:bg-[#29688A]/90 text-white"
+                          >
                             <Plus className="w-4 h-4 mr-2" />
                             Add Company Details
                           </Button>
@@ -496,37 +519,42 @@ export default function DashboardPage() {
                   </CardContent>
                 </Card>
               ) : (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center">
-                      <User className="w-5 h-5 mr-2" />
+                <Card className="border-gray-100 shadow-sm">
+                  <CardHeader className="pb-4">
+                    <CardTitle className="flex items-center text-lg font-semibold text-gray-900">
+                      <User className="w-5 h-5 mr-2 text-[#29688A]" />
                       Profile Info
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
                       <div>
-                        <p className="text-sm text-gray-600">Email</p>
-                        <p className="font-medium">{currentUser?.email || "Loading..."}</p>
+                        <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Email</p>
+                        <p className="font-medium text-gray-900 mt-1">{currentUser?.email || "Loading..."}</p>
                       </div>
 
                       <div>
-                        <p className="text-sm text-gray-600">Role</p>
-                        <Badge variant="outline" className="mt-1">
+                        <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Role</p>
+                        <Badge variant="outline" className="mt-1 text-xs border-gray-200">
                           {currentUser?.userRole || "Loading..."}
                         </Badge>
                       </div>
+
                       <div>
-                        <p className="text-sm text-gray-600">Status</p>
-                        <Badge variant={isProfileApproved ? "default" : "secondary"} className="mt-1">
+                        <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Status</p>
+                        <Badge
+                          variant={isProfileApproved ? "default" : "secondary"}
+                          className={`mt-1 text-xs ${isProfileApproved ? "bg-[#29688A] text-white" : ""}`}
+                        >
                           {isProfileApproved ? "Approved" : "Pending"}
                         </Badge>
                       </div>
+
                       <Button
                         onClick={() => router.push("/dashboard/profile")}
                         variant="outline"
                         size="sm"
-                        className="w-full mt-4"
+                        className="w-full mt-4 border-gray-200 hover:border-[#29688A] hover:bg-[#29688A]/5"
                       >
                         <Edit className="w-4 h-4 mr-2" />
                         Edit Profile
@@ -538,40 +566,47 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Recent Products for Sellers - Only show if has membership */}
           {currentUser?.userRole === "seller" && hasActiveMembership && productsData.length > 0 && (
-            <Card className="mt-8">
-              <CardHeader>
+            <Card className="mt-6 border-gray-100 shadow-sm">
+              <CardHeader className="pb-4">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center">
-                    <Package className="w-5 h-5 mr-2" />
+                  <CardTitle className="flex items-center text-lg font-semibold text-gray-900">
+                    <Package className="w-5 h-5 mr-2 text-[#29688A]" />
                     Recent Products
                   </CardTitle>
-                  <Button onClick={() => router.push("/dashboard/products")} variant="outline" size="sm">
-                    <Eye className="w-4 h-4 mr-2" />
+                  <Button
+                    onClick={() => router.push("/dashboard/products")}
+                    variant="outline"
+                    size="sm"
+                    className="border-gray-200 hover:border-[#29688A] hover:bg-[#29688A]/5 text-xs"
+                  >
+                    <Eye className="w-4 h-4 mr-1" />
                     View All
                   </Button>
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {productsData.slice(0, 3).map((product) => (
-                    <div key={product.id} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div className="flex items-center space-x-4">
+                    <div
+                      key={product.id}
+                      className="flex items-center justify-between p-4 border border-gray-100 rounded-lg hover:border-gray-200 transition-colors"
+                    >
+                      <div className="flex items-center gap-4">
                         {product.images && product.images.length > 0 ? (
                           <img
                             src={pb.files.getUrl(product, product.images[0]) || "/placeholder.svg"}
                             alt={product.title}
-                            className="w-12 h-12 object-cover rounded"
+                            className="w-10 h-10 object-cover rounded-lg"
                           />
                         ) : (
-                          <div className="w-12 h-12 bg-gray-200 rounded flex items-center justify-center">
-                            <Package className="w-6 h-6 text-gray-400" />
+                          <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+                            <Package className="w-5 h-5 text-gray-400" />
                           </div>
                         )}
                         <div>
-                          <p className="font-medium">{product.title}</p>
-                          <p className="text-sm text-gray-600">
+                          <p className="font-medium text-gray-900 text-sm">{product.title}</p>
+                          <p className="text-xs text-gray-500">
                             ₹{product.price} / {product.measurement}
                           </p>
                         </div>
@@ -584,6 +619,7 @@ export default function DashboardPage() {
                               ? "destructive"
                               : "secondary"
                         }
+                        className={`text-xs ${product.approvalStatus === "approved" ? "bg-[#29688A] text-white" : ""}`}
                       >
                         {product.approvalStatus}
                       </Badge>
@@ -596,28 +632,38 @@ export default function DashboardPage() {
 
           {/* Recent Requirements - Only show if has membership */}
           {hasActiveMembership && recentRequirements.length > 0 && (
-            <Card className="mt-8">
-              <CardHeader>
+            <Card className="mt-6 border-gray-100 shadow-sm">
+              <CardHeader className="pb-4">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center">
-                    <FileText className="w-5 h-5 mr-2" />
+                  <CardTitle className="flex items-center text-lg font-semibold text-gray-900">
+                    <FileText className="w-5 h-5 mr-2 text-[#29688A]" />
                     Recent Requirements
                   </CardTitle>
-                  <Button onClick={() => router.push("/dashboard/requirements")} variant="outline" size="sm">
-                    <Eye className="w-4 h-4 mr-2" />
+                  <Button
+                    onClick={() => router.push("/dashboard/requirements")}
+                    variant="outline"
+                    size="sm"
+                    className="border-gray-200 hover:border-[#29688A] hover:bg-[#29688A]/5 text-xs"
+                  >
+                    <Eye className="w-4 h-4 mr-1" />
                     View All
                   </Button>
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {recentRequirements.map((req) => (
-                    <div key={req.id} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div className="flex items-center space-x-4">
-                        <FileText className="w-5 h-5 text-green-600" />
+                    <div
+                      key={req.id}
+                      className="flex items-center justify-between p-4 border border-gray-100 rounded-lg hover:border-gray-200 transition-colors"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 bg-emerald-50 rounded-lg flex items-center justify-center">
+                          <FileText className="w-5 h-5 text-emerald-600" />
+                        </div>
                         <div>
-                          <p className="font-medium">{req.quoteFor}</p>
-                          <p className="text-sm text-gray-600">{req.category}</p>
+                          <p className="font-medium text-gray-900 text-sm">{req.quoteFor}</p>
+                          <p className="text-xs text-gray-500">{req.category}</p>
                         </div>
                       </div>
                       <Badge
@@ -628,6 +674,7 @@ export default function DashboardPage() {
                               ? "destructive"
                               : "secondary"
                         }
+                        className={`text-xs ${req.approvalStatus === "approved" ? "bg-[#29688A] text-white" : ""}`}
                       >
                         {req.approvalStatus}
                       </Badge>
@@ -638,23 +685,27 @@ export default function DashboardPage() {
             </Card>
           )}
 
-          {/* Recent Inquiries - Only show if has membership */}
           {hasActiveMembership && recentInquiries.length > 0 && (
-            <Card className="mt-8">
-              <CardHeader>
+            <Card className="mt-6 border-gray-100 shadow-sm">
+              <CardHeader className="pb-4">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center">
-                    <MessageSquare className="w-5 h-5 mr-2" />
+                  <CardTitle className="flex items-center text-lg font-semibold text-gray-900">
+                    <MessageSquare className="w-5 h-5 mr-2 text-[#29688A]" />
                     Recent Inquiries
                   </CardTitle>
-                  <Button onClick={() => router.push("/dashboard/inquiries")} variant="outline" size="sm">
-                    <Eye className="w-4 h-4 mr-2" />
+                  <Button
+                    onClick={() => router.push("/dashboard/inquiries")}
+                    variant="outline"
+                    size="sm"
+                    className="border-gray-200 hover:border-[#29688A] hover:bg-[#29688A]/5 text-xs"
+                  >
+                    <Eye className="w-4 h-4 mr-1" />
                     View All
                   </Button>
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {recentInquiries.map((inquiry) => {
                     const isProduct = !!inquiry.product
                     const targetUser =
@@ -663,18 +714,27 @@ export default function DashboardPage() {
                     const inquiryType = inquiry.buyer === currentUser?.id ? "Sent" : "Received"
 
                     return (
-                      <div key={inquiry.id} className="flex items-center justify-between p-4 border rounded-lg">
-                        <div className="flex items-center space-x-4">
-                          {isProduct ? (
-                            <Package className="w-5 h-5 text-blue-600" />
-                          ) : (
-                            <FileText className="w-5 h-5 text-green-600" />
-                          )}
+                      <div
+                        key={inquiry.id}
+                        className="flex items-center justify-between p-4 border border-gray-100 rounded-lg hover:border-gray-200 transition-colors"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div
+                            className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                              isProduct ? "bg-[#29688A]/10" : "bg-emerald-50"
+                            }`}
+                          >
+                            {isProduct ? (
+                              <Package className="w-5 h-5 text-[#29688A]" />
+                            ) : (
+                              <FileText className="w-5 h-5 text-emerald-600" />
+                            )}
+                          </div>
                           <div>
-                            <p className="font-medium">
+                            <p className="font-medium text-gray-900 text-sm">
                               {inquiryType} Inquiry for {targetItem?.title || targetItem?.quoteFor}
                             </p>
-                            <p className="text-sm text-gray-600">
+                            <p className="text-xs text-gray-500">
                               {inquiryType === "Sent" ? "To" : "From"}: {targetUser?.firstName} {targetUser?.lastName}
                             </p>
                           </div>
@@ -687,6 +747,7 @@ export default function DashboardPage() {
                                 ? "destructive"
                                 : "secondary"
                           }
+                          className={`text-xs ${inquiry.status === "replied" ? "bg-[#29688A] text-white" : ""}`}
                         >
                           {inquiry.status}
                         </Badge>

@@ -359,7 +359,7 @@ export default function AllProductsPage() {
                             : "/placeholder.svg?height=200&width=300"
                         }
                         alt={product.title}
-                        className={`object-cover group-hover:scale-110 transition-transform duration-500 ${
+                        className={`object-contain group-hover:scale-110 transition-transform duration-500 ${
                           viewMode === "grid" ? "w-full h-48" : "w-full h-32"
                         }`}
                       />
@@ -389,12 +389,12 @@ export default function AllProductsPage() {
                       <p className="text-sm text-gray-600 mb-4 line-clamp-2 leading-relaxed">{product.description}</p>
                       <div className="flex items-center justify-between">
                         <span className="text-2xl font-bold bg-gradient-to-r from-[#29688A] to-[#1e5a7a] bg-clip-text text-transparent">
-                          ${product.price}
+                         ₹{product.price}
                         </span>
-                        <div className="flex items-center text-sm font-medium" style={{ color: "#29688A" }}>
+                        {/* <div className="flex items-center text-sm font-medium" style={{ color: "#29688A" }}>
                           <Star className="h-4 w-4 fill-yellow-400 text-yellow-400 mr-1" />
                           <span>4.5</span>
-                        </div>
+                        </div> */}
                       </div>
                     </div>
                   </CardContent>
