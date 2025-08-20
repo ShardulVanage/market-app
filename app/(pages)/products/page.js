@@ -341,15 +341,15 @@ export default function AllProductsPage() {
         ) : (
           <div
             className={
-              viewMode === "grid" ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8" : "space-y-6"
+              viewMode === "grid" ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8 max-w-screen-2xl mx-auto" : "space-y-10 max-w-5xl mx-auto"
             }
           >
             {products.map((product) => (
               <Link key={product.id} href={`/product/${product.id}`}>
-                <Card className="group mt-2 hover:shadow-2xl transition-all duration-500 cursor-pointer h-full backdrop-blur-sm bg-white/90 border-0 rounded-2xl overflow-hidden hover:scale-105 hover:-translate-y-2">
+                <Card className="group mt-6 hover:shadow-2xl transition-all duration-500 cursor-pointer h-full backdrop-blur-sm bg-white/90 border-0 rounded-2xl overflow-hidden hover:scale-101 hover:-translate-y-2">
                   <CardContent className={viewMode === "grid" ? "p-0" : "p-0 flex"}>
                     <div
-                      className={`relative overflow-hidden ${viewMode === "grid" ? "rounded-t-2xl" : "rounded-l-2xl w-48 flex-shrink-0"}`}
+                      className={`relative overflow-hidden ${viewMode === "grid" ? "rounded-t-2xl" : "rounded-l-2xl w-80 flex-shrink-0"}`}
                     >
                       <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                       <img
@@ -360,7 +360,7 @@ export default function AllProductsPage() {
                         }
                         alt={product.title}
                         className={`object-contain group-hover:scale-110 transition-transform duration-500 ${
-                          viewMode === "grid" ? "w-full h-48" : "w-full h-32"
+                          viewMode === "grid" ? "w-full h-48" : "w-full h-48"
                         }`}
                       />
                     </div>
