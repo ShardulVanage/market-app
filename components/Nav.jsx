@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Search, ShoppingBag, ChevronDown, User, LogIn, Menu, X, LayoutDashboard, LogOut } from "lucide-react"
 import { useAuth } from "@/context/AuthContext"
+import Image from "next/image"
 
 export default function Navbar() {
   const [searchQuery, setSearchQuery] = useState("")
@@ -47,10 +48,7 @@ export default function Navbar() {
           <div className="flex items-center justify-between">
             {/* Logo */}
             <Link href="/" className="flex items-center space-x-3 hover:opacity-80 transition-opacity">
-              <div className="bg-[#29688A] p-2 rounded-lg">
-                <ShoppingBag className="h-6 w-6 text-white" />
-              </div>
-              <span className="text-xl md:text-2xl font-bold text-[#29688A]">Marketplace</span>
+             <Image src={'/logo.png'} width={200} height={200} alt="logo"/>
             </Link>
 
             <div className="flex items-center space-x-2 md:space-x-3">
