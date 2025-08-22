@@ -17,7 +17,7 @@ function ProductsSection() {
   const isLoading = usePocketBaseFetchWithLoading(async (signal) => {
     try {
       // Fetch featured products
-      const products = await pb.collection("products").getList(1, 8, {
+      const products = await pb.collection("products").getList(1, 4, {
         filter: 'approvalStatus = "approved"',
         sort: "-created",
         signal,
