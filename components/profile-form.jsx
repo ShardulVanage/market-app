@@ -92,7 +92,28 @@ export default function ProfileForm() {
       }, {
         requestKey: `profile-update-${currentUser.id}-${timestamp}`,
       });
-      
+      // <CHANGE> Send email notification to admin
+      try {
+    const response = await fetch('/api/send-profile-notification', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        userDetails: {
+          ...formData,
+          email: currentUser.email,
+        }
+      }),
+    });
+
+    if (!response.ok) {
+      console.error('Failed to send admin notification');
+    }
+  } catch (emailError) {
+    console.error('Email notification error:', emailError);
+    // Don't fail the profile update if email fails
+  }
       await refreshAuth();
       setMessage("Profile updated successfully! Awaiting admin re-approval.");
     } catch (err) {

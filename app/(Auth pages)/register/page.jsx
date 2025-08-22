@@ -33,96 +33,95 @@ export default function RegisterPage() {
   const { register, requestOTP, isLoading } = useAuth()
   const router = useRouter()
 
-const handleError = (err) => {
-  console.log("[v0] Registration error:", err)
+  const handleError = (err) => {
+    console.log("[v0] Registration error:", err)
 
-  setErrors({})
-  setGeneralError("")
+    setErrors({})
+    setGeneralError("")
 
-  // PocketBase SDK errors don't have err.response, they have direct properties
-  if (err && typeof err === 'object') {
-    
-    // Check if it's a PocketBase validation error with data property
-    if (err.data && typeof err.data === 'object') {
-      console.log("Found err.data:", err.data)
-      
-      const fieldErrors = {}
-      
-      Object.keys(err.data).forEach((field) => {
-        const errorMessage = err.data[field]
-        
-        if (field === "email" && typeof errorMessage === 'object' && errorMessage.message) {
-          // Handle { email: { message: "Value must be unique" } }
-          if (errorMessage.message.toLowerCase().includes('unique')) {
-            fieldErrors[field] = "Email already exists. Please use a different email address."
-          } else {
+    // PocketBase SDK errors don't have err.response, they have direct properties
+    if (err && typeof err === "object") {
+      // Check if it's a PocketBase validation error with data property
+      if (err.data && typeof err.data === "object") {
+        console.log("Found err.data:", err.data)
+
+        const fieldErrors = {}
+
+        Object.keys(err.data).forEach((field) => {
+          const errorMessage = err.data[field]
+
+          if (field === "email" && typeof errorMessage === "object" && errorMessage.message) {
+            // Handle { email: { message: "Value must be unique" } }
+            if (errorMessage.message.toLowerCase().includes("unique")) {
+              fieldErrors[field] = "Email already exists. Please use a different email address."
+            } else {
+              fieldErrors[field] = errorMessage.message
+            }
+          } else if (field === "email" && typeof errorMessage === "string") {
+            // Handle { email: "Value must be unique" }
+            if (errorMessage.toLowerCase().includes("unique")) {
+              fieldErrors[field] = "Email already exists. Please use a different email address."
+            } else {
+              fieldErrors[field] = errorMessage
+            }
+          } else if (typeof errorMessage === "string") {
+            fieldErrors[field] = errorMessage
+          } else if (typeof errorMessage === "object" && errorMessage.message) {
             fieldErrors[field] = errorMessage.message
           }
-        } else if (field === "email" && typeof errorMessage === 'string') {
-          // Handle { email: "Value must be unique" }
-          if (errorMessage.toLowerCase().includes('unique')) {
-            fieldErrors[field] = "Email already exists. Please use a different email address."
+        })
+
+        if (Object.keys(fieldErrors).length > 0) {
+          setErrors(fieldErrors)
+
+          if (fieldErrors.email) {
+            setGeneralError("Email already exists. Please use a different email address.")
           } else {
-            fieldErrors[field] = errorMessage
+            setGeneralError("Please fix the errors below:")
           }
-        } else if (typeof errorMessage === 'string') {
-          fieldErrors[field] = errorMessage
-        } else if (typeof errorMessage === 'object' && errorMessage.message) {
-          fieldErrors[field] = errorMessage.message
+          return
         }
-      })
-      
-      if (Object.keys(fieldErrors).length > 0) {
-        setErrors(fieldErrors)
-        
-        if (fieldErrors.email) {
+      }
+
+      // Check for direct error message about email uniqueness
+      if (err.message && typeof err.message === "string") {
+        if (err.message.toLowerCase().includes("unique") && err.message.toLowerCase().includes("email")) {
+          setErrors({ email: "Email already exists. Please use a different email address." })
           setGeneralError("Email already exists. Please use a different email address.")
-        } else {
-          setGeneralError("Please fix the errors below:")
+          return
         }
+
+        // Check for "Failed to create record" - often indicates unique constraint
+        if (err.message === "Failed to create record.") {
+          // This is likely a unique email constraint error
+          setErrors({ email: "Email already exists. Please use a different email address." })
+          setGeneralError("Email already exists. Please use a different email address.")
+          return
+        }
+      }
+
+      // Check for PocketBase error with isAbort property (common structure)
+      if (err.isAbort !== undefined) {
+        setGeneralError("Request was cancelled. Please try again.")
         return
       }
     }
-    
-    // Check for direct error message about email uniqueness
-    if (err.message && typeof err.message === 'string') {
-      if (err.message.toLowerCase().includes('unique') && err.message.toLowerCase().includes('email')) {
-        setErrors({ email: "Email already exists. Please use a different email address." })
+
+    // Fallback error handling
+    if (err?.message) {
+      if (err.message.includes("Failed to fetch")) {
+        setGeneralError("Network error. Please check your connection and try again.")
+      } else if (err.message.includes("400")) {
+        setGeneralError("Invalid registration data. Please check all fields.")
+      } else if (err.message.includes("409")) {
         setGeneralError("Email already exists. Please use a different email address.")
-        return
+      } else {
+        setGeneralError(err.message)
       }
-      
-      // Check for "Failed to create record" - often indicates unique constraint
-      if (err.message === 'Failed to create record.') {
-        // This is likely a unique email constraint error
-        setErrors({ email: "Email already exists. Please use a different email address." })
-        setGeneralError("Email already exists. Please use a different email address.")
-        return
-      }
-    }
-    
-    // Check for PocketBase error with isAbort property (common structure)
-    if (err.isAbort !== undefined) {
-      setGeneralError("Request was cancelled. Please try again.")
-      return
-    }
-  }
-  
-  // Fallback error handling
-  if (err?.message) {
-    if (err.message.includes("Failed to fetch")) {
-      setGeneralError("Network error. Please check your connection and try again.")
-    } else if (err.message.includes("400")) {
-      setGeneralError("Invalid registration data. Please check all fields.")
-    } else if (err.message.includes("409")) {
-      setGeneralError("Email already exists. Please use a different email address.")
     } else {
-      setGeneralError(err.message)
+      setGeneralError("Registration failed. Please try again.")
     }
-  } else {
-    setGeneralError("Registration failed. Please try again.")
   }
-}
 
   const validateForm = () => {
     const newErrors = {}
@@ -212,6 +211,24 @@ const handleError = (err) => {
         verified: false,
         profileStatus: "pending",
       })
+
+      try {
+        await fetch("/api/send-registration-emails", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            userEmail: formData.email,
+            userName: `${formData.prefix} ${formData.firstName} ${formData.lastName}`.trim(),
+            userRole: role,
+            organizationName: formData.organizationName,
+          }),
+        })
+      } catch (emailError) {
+        console.error("Failed to send registration emails:", emailError)
+        // Don't block the registration flow if email fails
+      }
 
       const otpId = await requestOTP(formData.email)
       router.push(`/verify-otp?email=${formData.email}&otpId=${otpId}`)

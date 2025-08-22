@@ -64,7 +64,7 @@ export default function AddRequirementPage() {
     setFormData((prev) => ({ ...prev, attachment: file }))
   }
 
-  const handleSubmit = async (e) => {
+   const handleSubmit = async (e) => {
     e.preventDefault()
 
     if (!currentUser?.id || currentUser.profileStatus !== "approved") {
@@ -99,6 +99,29 @@ export default function AddRequirementPage() {
       }
 
       await pb.collection("requirements").create(formDataToSend)
+
+      try {
+        await fetch("/api/send-requirement-email", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            type: "create",
+            requirementData: {
+              quoteFor: formData.quoteFor,
+              category: categoryPath,
+              requirementDetails: formData.requirementDetails,
+              location: formData.location,
+            },
+            userEmail: currentUser.email,
+            userName: currentUser.name || currentUser.email,
+          }),
+        })
+      } catch (emailError) {
+        console.error("Failed to send email notifications:", emailError)
+        // Don't fail the whole operation if email fails
+      }
 
       alert("Requirement posted successfully! It will be reviewed by admin.")
       router.push("/dashboard/requirements")

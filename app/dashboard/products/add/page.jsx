@@ -318,7 +318,7 @@ export default function AddProductPage() {
   }
 
   // Handle form submission
-  const handleSubmit = async (e) => {
+   const handleSubmit = async (e) => {
     e.preventDefault()
 
     if (!companyData || companyData.approvalStatus !== "approved") {
@@ -368,6 +368,25 @@ export default function AddProductPage() {
 
       await pb.collection("products").create(formDataToSubmit)
 
+      try {
+        await fetch("/api/send-product-notification", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            productTitle: formData.title,
+            userEmail: currentUser.email,
+            userName: currentUser.name || currentUser.email,
+            companyName: companyData.name,
+            adminPanelUrl: process.env.NEXT_PUBLIC_ADMIN_PANEL_URL,
+          }),
+        })
+      } catch (emailError) {
+        console.error("Error sending notification emails:", emailError)
+        // Don't fail the product creation if email fails
+      }
+
       alert("Product submitted successfully! It will be reviewed by admin.")
       router.push("/dashboard/products")
     } catch (error) {
@@ -377,6 +396,7 @@ export default function AddProductPage() {
       setIsSubmitting(false)
     }
   }
+
 
   if (isLoading || isFetchingCompany) {
     return (

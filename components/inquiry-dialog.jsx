@@ -145,7 +145,48 @@ export function InquiryDialog({ product = null, requirement = null, seller, trig
       console.log("[v0] Creating inquiry with data:", inquiryData)
 
       const result = await pb.collection("inquiries").create(inquiryData)
+// Send notification emails
+      try {
+        // Prepare data for email sending
+        const emailData = {
+          inquiryData: {
+            id: result.id,
+            message: inquiryData.message,
+            type: isProductInquiry ? "product" : "requirement",
+          },
+          inquiryType: isProductInquiry ? "product" : "requirement",
+          itemData: product || requirement,
+          buyerInfo: {
+            id: buyerId,
+            name: currentUser.name || currentUser.email,
+            email: currentUser.email,
+          },
+          sellerInfo: {
+            id: sellerId,
+            name: seller?.name || seller?.email || "Unknown",
+            email: seller?.email || "unknown@email.com",
+          },
+        }
 
+        // Send notification emails
+        const emailResponse = await fetch("/api/send-inquiry-emails", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(emailData),
+        })
+
+        if (!emailResponse.ok) {
+          console.error("Failed to send notification emails:", await emailResponse.text())
+          // Don't fail the whole process if email fails
+        } else {
+          console.log("[v0] Notification emails sent successfully")
+        }
+      } catch (emailError) {
+        console.error("Error sending notification emails:", emailError)
+        // Don't fail the whole process if email fails
+      }
       toast({
         title: "Inquiry Sent Successfully",
         description: `Your ${isProductInquiry ? "product inquiry" : "proposal"} has been sent successfully. You'll be notified once it's approved.`,

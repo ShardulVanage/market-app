@@ -1,5 +1,5 @@
 "use client"
-import { useState, useEffect } from "react"
+import { useState, useCallback } from "react"
 import { useRouter, useParams } from "next/navigation"
 import { useAuth } from "@/context/AuthContext"
 import AuthGuard from "@/components/auth-guard"
@@ -13,6 +13,7 @@ import LoadingSpinner from "@/components/ui/loading-spinner"
 import { getClientPb } from "@/lib/pocketbase"
 import { productCategories, countries } from "@/lib/constants"
 import { ArrowLeft, Upload, Save } from "lucide-react"
+import { usePocketBaseFetchWithLoading } from "@/hooks/use-pocketbase-fetch"
 
 export default function EditRequirementPage() {
   const { currentUser, isLoading } = useAuth()
@@ -32,17 +33,17 @@ export default function EditRequirementPage() {
 
   const [originalRequirement, setOriginalRequirement] = useState(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [isFetching, setIsFetching] = useState(true)
   const [selectedCategory, setSelectedCategory] = useState(null)
   const [selectedSubcategory, setSelectedSubcategory] = useState(null)
 
-  useEffect(() => {
-    const fetchRequirement = async () => {
+  const fetchRequirement = useCallback(
+    async (signal) => {
       if (!params.id || !currentUser?.id) return
 
-      setIsFetching(true)
       try {
-        const requirement = await pb.collection("requirements").getOne(params.id)
+        const requirement = await pb.collection("requirements").getOne(params.id, {
+          signal, // This prevents auto-cancellation errors
+        })
 
         // Check if user owns this requirement
         if (requirement.user !== currentUser.id) {
@@ -82,15 +83,20 @@ export default function EditRequirementPage() {
           attachment: null, // Don't pre-fill file input
         })
       } catch (error) {
-        console.error("Failed to fetch requirement:", error)
-        router.push("/dashboard/requirements")
-      } finally {
-        setIsFetching(false)
+        if (error.name !== "AbortError") {
+          console.error("Failed to fetch requirement:", error)
+          router.push("/dashboard/requirements")
+        }
       }
-    }
+    },
+    [params.id, currentUser, pb, router],
+  )
 
-    fetchRequirement()
-  }, [params.id, currentUser, pb, router])
+  const isFetching = usePocketBaseFetchWithLoading(
+    fetchRequirement,
+    [fetchRequirement],
+    200, // 200ms debounce delay
+  )
 
   const handleInputChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
@@ -157,6 +163,29 @@ export default function EditRequirementPage() {
       }
 
       await pb.collection("requirements").update(params.id, formDataToSend)
+
+      try {
+        await fetch("/api/send-requirement-email", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            type: "update",
+            requirementData: {
+              quoteFor: formData.quoteFor,
+              category: categoryPath,
+              requirementDetails: formData.requirementDetails,
+              location: formData.location,
+            },
+            userEmail: currentUser.email,
+            userName: currentUser.name || currentUser.email,
+          }),
+        })
+      } catch (emailError) {
+        console.error("Failed to send email notifications:", emailError)
+        // Don't fail the whole operation if email fails
+      }
 
       alert("Requirement updated successfully! It will be reviewed by admin again.")
       router.push("/dashboard/requirements")

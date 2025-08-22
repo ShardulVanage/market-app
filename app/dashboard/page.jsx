@@ -511,7 +511,7 @@ export default function DashboardPage() {
                             className="w-full bg-[#29688A] hover:bg-[#29688A]/90 text-white"
                           >
                             <Plus className="w-4 h-4 mr-2" />
-                            Add Company Details
+                            Add Company Details to Add products
                           </Button>
                         )}
                       </div>
