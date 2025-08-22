@@ -27,12 +27,7 @@ import { useAuth } from "@/context/AuthContext"
 import { toast } from "@/hooks/use-toast"
 import { MessageSquare, Send, LogIn, Clock } from "lucide-react"
 
-export function InquiryDialog({ 
-  product = null, 
-  requirement = null, 
-  seller, 
-  trigger 
-}) {
+export function InquiryDialog({ product = null, requirement = null, seller, trigger }) {
   const { currentUser, pb } = useAuth()
   const router = useRouter()
   const [message, setMessage] = useState("")
@@ -73,7 +68,7 @@ export function InquiryDialog({
       })
       return
     }
-    
+
     if (currentUser.profileStatus !== "approved") {
       toast({
         title: "Profile Approval Required",
@@ -82,7 +77,7 @@ export function InquiryDialog({
       })
       return
     }
-    
+
     if (!message.trim()) {
       toast({
         title: "Message Required",
@@ -102,12 +97,36 @@ export function InquiryDialog({
       return
     }
 
+    let buyerId = null
+    let sellerId = null
+
+    if (isProductInquiry && product) {
+      // For product inquiries: current user (buyer) contacts product owner (seller)
+      buyerId = currentUser.id
+      sellerId = product.seller || seller?.id
+    } else if (isRequirementInquiry && requirement) {
+      buyerId = requirement.userId || seller?.id // The requirement poster is the buyer
+      sellerId = currentUser.id // Current user is the seller offering services
+    }
+
+    if (!sellerId || !buyerId) {
+      toast({
+        title: "Contact Information Missing",
+        description: "Unable to identify the recipient for this inquiry.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    console.log("[v0] Inquiry type:", isProductInquiry ? "product" : "requirement")
+    console.log("[v0] Buyer ID:", buyerId, "Seller ID:", sellerId)
+
     setIsSubmitting(true)
-    
+
     try {
       const inquiryData = {
-        buyer: currentUser.id,
-        seller: seller?.id,
+        buyer: buyerId,
+        seller: sellerId,
         message: message.trim(),
         approvalStatus: "pending",
         status: "sent",
@@ -118,18 +137,20 @@ export function InquiryDialog({
       if (isProductInquiry) {
         inquiryData.product = product.id
       }
-      
+
       if (isRequirementInquiry) {
         inquiryData.requirement = requirement.id
       }
 
+      console.log("[v0] Creating inquiry with data:", inquiryData)
+
       const result = await pb.collection("inquiries").create(inquiryData)
-      
+
       toast({
         title: "Inquiry Sent Successfully",
-        description: `Your ${isProductInquiry ? 'product' : 'requirement'} inquiry has been sent to the ${isProductInquiry ? 'seller' : 'buyer'}. You'll be notified once it's approved.`,
+        description: `Your ${isProductInquiry ? "product inquiry" : "proposal"} has been sent successfully. You'll be notified once it's approved.`,
       })
-      
+
       setMessage("")
       setIsOpen(false)
     } catch (error) {
@@ -153,7 +174,7 @@ export function InquiryDialog({
   const getDialogDescription = () => {
     const itemTitle = itemData?.title || itemData?.quoteFor || "this item"
     const actionText = isProductInquiry ? "Send a message to the seller" : "Send your proposal to the buyer"
-    
+
     return `${actionText} about "${itemTitle}". Your inquiry will be reviewed before you can start chatting.`
   }
 
@@ -229,9 +250,7 @@ export function InquiryDialog({
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle>{getDialogTitle()}</DialogTitle>
-            <DialogDescription>
-              {getDialogDescription()}
-            </DialogDescription>
+            <DialogDescription>{getDialogDescription()}</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
@@ -254,22 +273,16 @@ export function InquiryDialog({
               <p className="text-sm text-muted-foreground">
                 {itemData?.title || itemData?.quoteFor || "No title available"}
               </p>
-              {itemData?.price && (
-                <p className="text-sm font-medium text-primary">${itemData.price}</p>
-              )}
+              {itemData?.price && <p className="text-sm font-medium text-primary">${itemData.price}</p>}
               {itemData?.requirementDetails && (
-                <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                  {itemData.requirementDetails}
-                </p>
+                <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{itemData.requirementDetails}</p>
               )}
             </div>
 
             {seller && (
               <div className="bg-muted/50 p-3 rounded-lg">
                 <h4 className="font-medium text-sm mb-1">{getRecipientTitle()}</h4>
-                <p className="text-sm text-muted-foreground">
-                  {seller.name || seller.email || "Unknown user"}
-                </p>
+                <p className="text-sm text-muted-foreground">{seller.name || seller.email || "Unknown user"}</p>
               </div>
             )}
           </div>

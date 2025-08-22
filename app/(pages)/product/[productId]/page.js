@@ -37,9 +37,14 @@ export default function ProductDetailPage() {
           requestKey: `product-${productId}-${Date.now()}`,
         })
 
+        console.log("[v0] Product data received:", productData) // Debug log
+
         setProduct(productData)
         setSeller(productData.expand?.seller)
         setCompany(productData.expand?.company)
+
+        console.log("[v0] Seller data:", productData.expand?.seller)
+        console.log("[v0] Product seller ID:", productData.seller)
 
         // Fetch related products
         if (productData.category) {
@@ -62,11 +67,7 @@ export default function ProductDetailPage() {
     [productId],
   )
 
-  const {
-    isFavorite,
-    isLoading: favoritesLoading,
-    toggleFavorite,
-  } = useFavorites(product ? (productId) : null)
+  const { isFavorite, isLoading: favoritesLoading, toggleFavorite } = useFavorites(product ? productId : null)
 
   if (isLoading) {
     return (
@@ -290,7 +291,14 @@ export default function ProductDetailPage() {
                 {seller && (
                   <div>
                     <h5 className="font-medium">Contact Person</h5>
-                    <p className="text-muted-foreground">{seller.name}</p>
+                    <p className="text-muted-foreground">
+                      {seller.firstName && seller.lastName
+                        ? `${seller.firstName} ${seller.lastName}`
+                        : seller.name || seller.email}
+                    </p>
+                    {seller.organizationName && (
+                      <p className="text-sm text-muted-foreground">{seller.organizationName}</p>
+                    )}
                   </div>
                 )}
 

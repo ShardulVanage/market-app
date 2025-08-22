@@ -3,10 +3,9 @@
 import { useState, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Search, MapPin, Calendar, DollarSign, MessageSquare } from "lucide-react"
+import { Search, MapPin, Calendar, MessageSquare } from "lucide-react"
 import { usePocketBaseFetchWithLoading } from "@/hooks/use-pocketbase-fetch"
 import { getClientPb } from "@/lib/pocketbase"
 import { InquiryDialog } from "@/components/inquiry-dialog"
@@ -187,7 +186,7 @@ export default function BrowseRequirementsPage() {
           ) : (
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {requirements.map((requirement) => (
-               <Card
+                <Card
                   key={requirement.id}
                   className="border border-gray-200 hover:border-[#29688A] transition-colors duration-200 hover:shadow-lg"
                 >
@@ -197,7 +196,10 @@ export default function BrowseRequirementsPage() {
                         {requirement.quoteFor || "Requirement"}
                       </CardTitle>
                       {requirement.category && (
-                        <p variant="secondary" className="self-start bg-[#29688A]/10 text-[#29688A] border-[#29688A]/20 rounded-r-3xl p-2 text-xs">
+                        <p
+                          variant="secondary"
+                          className="self-start bg-[#29688A]/10 text-[#29688A] border-[#29688A]/20 rounded-r-3xl p-2 text-xs"
+                        >
                           {requirement.category}
                         </p>
                       )}
@@ -243,8 +245,14 @@ export default function BrowseRequirementsPage() {
                           id: requirement.id,
                           quoteFor: requirement.quoteFor || "Requirement",
                           requirementDetails: requirement.requirementDetails,
+                          userId: requirement.user, // Pass the requirement poster's user ID
                         }}
-                        seller={requirement.expand?.user}
+                        seller={{
+                          id: requirement.user, // The requirement poster is the buyer who will receive the proposal
+                          name:
+                            requirement.expand?.user?.name || requirement.expand?.user?.email || "Requirement Poster",
+                          email: requirement.expand?.user?.email,
+                        }}
                         trigger={
                           <Button className="w-full bg-[#29688A] hover:bg-[#29688A]/90 text-white" size="sm">
                             <MessageSquare className="h-4 w-4 mr-2" />
