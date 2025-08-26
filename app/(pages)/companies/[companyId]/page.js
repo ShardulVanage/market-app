@@ -17,16 +17,37 @@ import {
   Award,
   Handshake,
   FileCheck,
+  ChevronUp,
+  ChevronDown,
 } from "lucide-react"
 import { usePocketBaseFetchWithLoading } from "@/hooks/use-pocketbase-fetch"
 import { getClientPb } from "@/lib/pocketbase"
+import { Button } from "@/components/ui/button"
 
 export default function CompanyDetailPage() {
   const [company, setCompany] = useState(null)
   const [products, setProducts] = useState([])
   const params = useParams()
   const router = useRouter()
+    const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
 
+  const shouldTruncateDescription = (description) => {
+    if (!description) return false
+    const lines = description.split("\n")
+    return lines.length > 8 || description.length > 600
+  }
+
+  const getTruncatedDescription = (description) => {
+    if (!description) return ""
+    const lines = description.split("\n")
+    if (lines.length > 8) {
+      return lines.slice(0, 8).join("\n")
+    }
+    if (description.length > 600) {
+      return description.substring(0, 600) + "..."
+    }
+    return description
+  }
   const isLoading = usePocketBaseFetchWithLoading(
     async (signal) => {
       if (!params.companyId) return
@@ -140,9 +161,38 @@ export default function CompanyDetailPage() {
 
             {/* Company Details */}
             <div className="flex-1">
-              {company.description && (
+              {/* {company.description && (
                 <p className="text-gray-600 text-lg mb-6 leading-relaxed">{company.description}</p>
-              )}
+              )} */}
+
+
+<div className="text-gray-600 leading-relaxed py-4">
+                <p className="whitespace-pre-line">
+                  {shouldTruncateDescription(company.description) && !isDescriptionExpanded
+                    ? getTruncatedDescription(company.description)
+                    : company.description}
+                </p>
+                {shouldTruncateDescription(company.description) && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
+                    className="mt-2 p-0 h-auto text-[#29688A] hover:text-[#1e4f6b] hover:bg-transparent font-medium"
+                  >
+                    {isDescriptionExpanded ? (
+                      <>
+                        <ChevronUp className="h-4 w-4 mr-1" />
+                        Read Less
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown className="h-4 w-4 mr-1" />
+                        Read More
+                      </>
+                    )}
+                  </Button>
+                )}
+              </div>
 
               {/* Contact Information */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">

@@ -516,7 +516,7 @@ export default function AddProductPage() {
                   <div>
                     <Label>Category *</Label>
                     <Select value={selectedCategory} onValueChange={handleCategoryChange}>
-                      <SelectTrigger>
+                      <SelectTrigger className={'w-full'}>
                         <SelectValue placeholder="Select category" />
                       </SelectTrigger>
                       <SelectContent>
@@ -535,11 +535,12 @@ export default function AddProductPage() {
                       value={selectedSubcategory}
                       onValueChange={handleSubcategoryChange}
                       disabled={!selectedCategory}
+                      
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className={'w-full'}>
                         <SelectValue placeholder="Select subcategory" />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent >
                         {availableSubcategories.map((subcategory) => (
                           <SelectItem key={subcategory.name} value={subcategory.name}>
                             {subcategory.name}
@@ -556,7 +557,7 @@ export default function AddProductPage() {
                       onValueChange={handleSubSubcategoryChange}
                       disabled={!selectedSubcategory}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className={'w-full'}>
                         <SelectValue placeholder="Select sub-subcategory" />
                       </SelectTrigger>
                       <SelectContent>
@@ -690,7 +691,7 @@ export default function AddProductPage() {
                 <h3 className="text-lg font-semibold">Product Details</h3>
 
                 <div>
-                  <Label htmlFor="productDescription">Detailed Description</Label>
+                  <Label htmlFor="productDescription">short Description</Label>
                   <Textarea
                     id="productDescription"
                     value={formData.productDetails.description}

@@ -195,7 +195,7 @@ export default function CategoryPage() {
                 variant={viewMode === "grid" ? "default" : "ghost"}
                 size="sm"
                 onClick={() => setViewMode("grid")}
-                className="rounded-r-none"
+                className="rounded-r-none "
               >
                 <Grid className="h-4 w-4" />
               </Button>
@@ -267,57 +267,63 @@ export default function CategoryPage() {
           </div>
         ) : (
           <div
-            className={
-              viewMode === "grid" ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6" : "space-y-4"
-            }
+  className={
+    viewMode === "grid" ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6" : " space-y-4 "
+  }
+>
+  {products.map((product) => (
+    <Link key={product.id} href={`/product/${product.id}`}>
+      <Card className="group hover:shadow-lg transition-all duration-300 cursor-pointer h-full my-3">
+        <CardContent className={viewMode === "grid" ? "p-0 flex flex-col h-full" : "p-0 flex md:flex-row flex-col h-full"}>
+          <div
+            className={`relative overflow-hidden mx-auto ${
+              viewMode === "grid" ? "rounded-t-lg" : "rounded-l-lg w-60 flex-shrink-0"
+            }`}
           >
-            {products.map((product) => (
-              <Link key={product.id} href={`/product/${product.id}`}>
-                <Card className="group hover:shadow-lg transition-all duration-300 cursor-pointer h-full">
-                  <CardContent className={viewMode === "grid" ? "p-0" : "p-0 flex"}>
-                    <div
-                      className={`relative overflow-hidden ${viewMode === "grid" ? "rounded-t-lg" : "rounded-l-lg w-48 flex-shrink-0"}`}
-                    >
-                      <img
-                        src={
-                          product.images?.[0]
-                            ? `${process.env.NEXT_PUBLIC_POCKETBASE_URL}/api/files/products/${product.id}/${product.images[0]}`
-                            : "/placeholder.svg?height=200&width=300"
-                        }
-                        alt={product.title}
-                        className={`object-cover group-hover:scale-105 transition-transform duration-300 ${
-                          viewMode === "grid" ? "w-full h-48" : "w-full h-32"
-                        }`}
-                      />
-                    </div>
-                    <div className="p-4 flex-1">
-                      <div className="flex flex-wrap gap-1 mb-2">
-                        {product.sub_category && (
-                          <Badge variant="outline" className="text-xs">
-                            {product.sub_category}
-                          </Badge>
-                        )}
-                        {product.sub_sub_category && (
-                          <Badge variant="outline" className="text-xs">
-                            {product.sub_sub_category}
-                          </Badge>
-                        )}
-                      </div>
-                      <h3 className="font-semibold text-foreground mb-2 line-clamp-2">{product.title}</h3>
-                      <p className="text-sm text-muted-foreground mb-2 line-clamp-2">{product.description}</p>
-                      <div className="flex items-center justify-between">
-                        <span className="text-lg font-bold text-primary">${product.price}</span>
-                        <div className="flex items-center text-sm text-muted-foreground">
-                          <Star className="h-4 w-4 fill-yellow-400 text-yellow-400 mr-1" />
-                          <span>4.5</span>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            ))}
+            <img
+              src={
+                product.images?.[0]
+                  ? `${process.env.NEXT_PUBLIC_POCKETBASE_URL}/api/files/products/${product.id}/${product.images[0]}`
+                  : "/placeholder.svg?height=200&width=300"
+              }
+              alt={product.title}
+              className={`object-contain group-hover:scale-105 transition-transform duration-300  ${
+                viewMode === "grid " ? "w-full h-48" : "w-full h-60 "
+              }`}
+            />
           </div>
+          <div className="p-4 flex-1 flex flex-col max-w-5xl">
+            <div className="flex-1">
+              <div className="flex flex-wrap gap-1 mb-2">
+                {product.sub_category && (
+                  <Badge variant="outline" className="text-xs">
+                    {product.sub_category}
+                  </Badge>
+                )}
+                {product.sub_sub_category && (
+                  <Badge variant="outline" className="text-xs">
+                    {product.sub_sub_category}
+                  </Badge>
+                )}
+              </div>
+              <h3 className="font-semibold text-foreground mb-2 line-clamp-2">{product.title}</h3>
+              <p className="text-sm text-muted-foreground mb-2 line-clamp-2">{product.description}</p>
+            </div>
+            <div className="mt-auto">
+              <div className="flex items-center justify-between mb-3 py-3">
+                <span className="text-xl font-bold text-primary">₹{product.price}</span>
+                
+              </div>
+              <Button className="w-full py-2 font-semibold hover:shadow-md transition-all duration-300 bg-[#29688A] hover:bg-[#1e4f6b]">
+                View More
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </Link>
+  ))}
+</div>
         )}
 
         {totalPages > 1 && (
