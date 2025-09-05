@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,7 @@ import { User, Building2, Phone, MapPin, Briefcase, Globe, Target, Users } from 
 export default function ProfileForm() {
   const { currentUser, pb, isLoading: authLoading, refreshAuth } = useAuth();
   const router = useRouter();
+  const isInitialized = useRef(false);
 
   const [formData, setFormData] = useState({
     prefix: "",
@@ -44,8 +45,9 @@ export default function ProfileForm() {
   const [error, setError] = useState(null);
   const [isError, setIsError] = useState(false);
 
+  // Initialize form data only once when currentUser is available
   useEffect(() => {
-    if (currentUser) {
+    if (currentUser && !isInitialized.current) {
       setFormData({
         prefix: currentUser.prefix || "",
         firstName: currentUser.firstName || "",
@@ -58,19 +60,33 @@ export default function ProfileForm() {
         functionalAreas: currentUser.functionalAreas || "",
         linkedin: currentUser.linkedin || "",
       });
+      isInitialized.current = true;
     }
   }, [currentUser]);
 
-  const handleChange = (e) => {
-    const { id, value } = e.target;
-    setFormData((prev) => ({ ...prev, [id]: value }));
-  };
+  // Stable event handlers that won't cause re-renders
+  const handleFieldChange = useCallback((fieldName, value) => {
+    setFormData(prev => ({
+      ...prev,
+      [fieldName]: value
+    }));
+  }, []);
 
-  const handleSelectChange = (id, value) => {
-    setFormData((prev) => ({ ...prev, [id]: value }));
-  };
+  // Memoized handlers to prevent re-creation
+  const inputHandlers = useMemo(() => ({
+    prefix: (value) => handleFieldChange('prefix', value),
+    firstName: (e) => handleFieldChange('firstName', e.target.value),
+    lastName: (e) => handleFieldChange('lastName', e.target.value),
+    organizationName: (e) => handleFieldChange('organizationName', e.target.value),
+    mobile: (e) => handleFieldChange('mobile', e.target.value),
+    designation: (e) => handleFieldChange('designation', e.target.value),
+    country: (value) => handleFieldChange('country', value),
+    sectorsOfInterest: (value) => handleFieldChange('sectorsOfInterest', value),
+    functionalAreas: (value) => handleFieldChange('functionalAreas', value),
+    linkedin: (e) => handleFieldChange('linkedin', e.target.value),
+  }), [handleFieldChange]);
 
-  const handleSubmit = async (event) => {
+  const handleSubmit = useCallback(async (event) => {
     event.preventDefault();
     setIsSubmitting(true);
     setMessage(null);
@@ -92,28 +108,29 @@ export default function ProfileForm() {
       }, {
         requestKey: `profile-update-${currentUser.id}-${timestamp}`,
       });
-      // <CHANGE> Send email notification to admin
+      
+      // Send email notification to admin
       try {
-    const response = await fetch('/api/send-profile-notification', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        userDetails: {
-          ...formData,
-          email: currentUser.email,
-        }
-      }),
-    });
+        const response = await fetch('/api/send-profile-notification', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            userDetails: {
+              ...formData,
+              email: currentUser.email,
+            }
+          }),
+        });
 
-    if (!response.ok) {
-      console.error('Failed to send admin notification');
-    }
-  } catch (emailError) {
-    console.error('Email notification error:', emailError);
-    // Don't fail the profile update if email fails
-  }
+        if (!response.ok) {
+          console.error('Failed to send admin notification');
+        }
+      } catch (emailError) {
+        console.error('Email notification error:', emailError);
+      }
+      
       await refreshAuth();
       setMessage("Profile updated successfully! Awaiting admin re-approval.");
     } catch (err) {
@@ -123,9 +140,10 @@ export default function ProfileForm() {
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }, [currentUser, formData, pb, refreshAuth]);
 
-  const FormSection = ({ title, icon: Icon, children }) => (
+  // Memoized components to prevent unnecessary re-renders
+  const FormSection = useCallback(({ title, icon: Icon, children }) => (
     <div className="space-y-4">
       <div className="flex items-center gap-2 pb-3 border-b border-gray-100">
         <Icon className="h-5 w-5 text-[#29688A]" />
@@ -135,9 +153,9 @@ export default function ProfileForm() {
         {children}
       </div>
     </div>
-  );
+  ), []);
 
-  const FormField = ({ label, icon: Icon, children, fullWidth = false }) => (
+  const FormField = useCallback(({ label, icon: Icon, children, fullWidth = false }) => (
     <div className={fullWidth ? "col-span-full" : ""}>
       <Label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
         {Icon && <Icon className="h-4 w-4 text-[#29688A]" />}
@@ -145,7 +163,16 @@ export default function ProfileForm() {
       </Label>
       {children}
     </div>
-  );
+  ), []);
+
+  // Don't render until we have the user data and form is initialized
+  if (!currentUser || !isInitialized.current) {
+    return (
+      <div className="w-full max-w-4xl mx-auto flex justify-center items-center min-h-[400px]">
+        <LoadingSpinner className="h-8 w-8" />
+      </div>
+    );
+  }
 
   return (
     <div className="w-full max-w-4xl mx-auto">
@@ -178,11 +205,11 @@ export default function ProfileForm() {
             <FormSection title="Personal Information" icon={User}>
               <FormField label="Prefix">
                 <Select
-                  onValueChange={(value) => handleSelectChange("prefix", value)}
+                  onValueChange={inputHandlers.prefix}
                   value={formData.prefix}
                   disabled={isSubmitting || authLoading}
                 >
-                  <SelectTrigger className="border-gray-200 focus:border-[#29688A] focus:ring-[#29688A]/20">
+                  <SelectTrigger className="border-gray-200 focus:border-[#29688A] focus:ring-[#29688A]/20 w-full">
                     <SelectValue placeholder="Select prefix" />
                   </SelectTrigger>
                   <SelectContent>
@@ -197,11 +224,11 @@ export default function ProfileForm() {
 
               <FormField label="First Name">
                 <Input
-                  id="firstName"
+                  name="firstName"
                   type="text"
                   required
                   value={formData.firstName}
-                  onChange={handleChange}
+                  onChange={inputHandlers.firstName}
                   disabled={isSubmitting || authLoading}
                   className="border-gray-200 focus:border-[#29688A] focus:ring-[#29688A]/20"
                   placeholder="Enter your first name"
@@ -210,11 +237,11 @@ export default function ProfileForm() {
 
               <FormField label="Last Name">
                 <Input
-                  id="lastName"
+                  name="lastName"
                   type="text"
                   required
                   value={formData.lastName}
-                  onChange={handleChange}
+                  onChange={inputHandlers.lastName}
                   disabled={isSubmitting || authLoading}
                   className="border-gray-200 focus:border-[#29688A] focus:ring-[#29688A]/20"
                   placeholder="Enter your last name"
@@ -223,10 +250,10 @@ export default function ProfileForm() {
 
               <FormField label="Mobile" icon={Phone}>
                 <Input
-                  id="mobile"
+                  name="mobile"
                   type="text"
                   value={formData.mobile}
-                  onChange={handleChange}
+                  onChange={inputHandlers.mobile}
                   disabled={isSubmitting || authLoading}
                   className="border-gray-200 focus:border-[#29688A] focus:ring-[#29688A]/20"
                   placeholder="Enter your mobile number"
@@ -238,10 +265,10 @@ export default function ProfileForm() {
             <FormSection title="Professional Information" icon={Briefcase}>
               <FormField label="Designation" icon={Briefcase}>
                 <Input
-                  id="designation"
+                  name="designation"
                   type="text"
                   value={formData.designation}
-                  onChange={handleChange}
+                  onChange={inputHandlers.designation}
                   disabled={isSubmitting || authLoading}
                   className="border-gray-200 focus:border-[#29688A] focus:ring-[#29688A]/20"
                   placeholder="Enter your designation"
@@ -250,10 +277,10 @@ export default function ProfileForm() {
 
               <FormField label="Organization" icon={Building2}>
                 <Input
-                  id="organizationName"
+                  name="organizationName"
                   type="text"
                   value={formData.organizationName}
-                  onChange={handleChange}
+                  onChange={inputHandlers.organizationName}
                   disabled={isSubmitting || authLoading}
                   className="border-gray-200 focus:border-[#29688A] focus:ring-[#29688A]/20"
                   placeholder="Enter your organization name"
@@ -262,11 +289,11 @@ export default function ProfileForm() {
 
               <FormField label="Country" icon={MapPin}>
                 <Select
-                  onValueChange={(value) => handleSelectChange("country", value)}
+                  onValueChange={inputHandlers.country}
                   value={formData.country}
                   disabled={isSubmitting || authLoading}
                 >
-                  <SelectTrigger className="border-gray-200 focus:border-[#29688A] focus:ring-[#29688A]/20">
+                  <SelectTrigger className="border-gray-200 focus:border-[#29688A] focus:ring-[#29688A]/20 w-full">
                     <SelectValue placeholder="Select your country" />
                   </SelectTrigger>
                   <SelectContent>
@@ -281,10 +308,10 @@ export default function ProfileForm() {
 
               <FormField label="LinkedIn Profile" icon={Globe}>
                 <Input
-                  id="linkedin"
+                  name="linkedin"
                   type="url"
                   value={formData.linkedin}
-                  onChange={handleChange}
+                  onChange={inputHandlers.linkedin}
                   placeholder="https://linkedin.com/in/yourprofile"
                   disabled={isSubmitting || authLoading}
                   className="border-gray-200 focus:border-[#29688A] focus:ring-[#29688A]/20"
@@ -296,11 +323,11 @@ export default function ProfileForm() {
             <FormSection title="Areas of Interest" icon={Target}>
               <FormField label="Sectors of Interest" icon={Target} fullWidth>
                 <Select
-                  onValueChange={(value) => handleSelectChange("sectorsOfInterest", value)}
+                  onValueChange={inputHandlers.sectorsOfInterest}
                   value={formData.sectorsOfInterest}
                   disabled={isSubmitting || authLoading}
                 >
-                  <SelectTrigger className="border-gray-200 focus:border-[#29688A] focus:ring-[#29688A]/20">
+                  <SelectTrigger className="border-gray-200 focus:border-[#29688A] focus:ring-[#29688A]/20 w-full">
                     <SelectValue placeholder="Select sectors of interest" />
                   </SelectTrigger>
                   <SelectContent>
@@ -315,11 +342,11 @@ export default function ProfileForm() {
 
               <FormField label="Functional Areas" icon={Users} fullWidth>
                 <Select
-                  onValueChange={(value) => handleSelectChange("functionalAreas", value)}
+                  onValueChange={inputHandlers.functionalAreas}
                   value={formData.functionalAreas}
                   disabled={isSubmitting || authLoading}
                 >
-                  <SelectTrigger className="border-gray-200 focus:border-[#29688A] focus:ring-[#29688A]/20">
+                  <SelectTrigger className="border-gray-200 focus:border-[#29688A] focus:ring-[#29688A]/20 w-full">
                     <SelectValue placeholder="Select functional areas" />
                   </SelectTrigger>
                   <SelectContent>
